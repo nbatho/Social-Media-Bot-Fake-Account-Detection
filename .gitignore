@@ -1,0 +1,16 @@
+# Local planning and working notes
+/docs/
+
+# Python virtual environment and caches
+/.venv/
+__pycache__/
+*.py[cod]
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Generated data and trained model artifacts
+/dataset/processed/*
+!/dataset/processed/.gitkeep
+/models/*
+!/models/.gitkeep

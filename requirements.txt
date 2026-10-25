@@ -1,0 +1,18 @@
+# Target runtime: Python 3.14.x (64-bit)
+# Direct dependencies; export requirements-lock.txt after validating the environment.
+
+# Data processing
+numpy>=2.3.3,<3.0
+pandas>=2.3.3,<4.0
+
+# Machine learning and model persistence
+scikit-learn>=1.8,<2.0
+joblib>=1.5,<2.0
+
+# Visualization
+matplotlib>=3.10,<4.0
+seaborn>=0.13.2,<0.14
+
+# Notebook runtime and browser interface
+ipykernel>=7.0,<8.0
+jupyterlab>=4.4,<5.0
