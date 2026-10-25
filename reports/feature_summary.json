@@ -1,0 +1,174 @@
+{
+  "data_quality": {
+    "rows_read": 37438,
+    "rows_retained": 37438,
+    "rows_removed": 0,
+    "removal_reasons": [],
+    "source_columns": [
+      "Unnamed: 0",
+      "created_at",
+      "default_profile",
+      "default_profile_image",
+      "description",
+      "favourites_count",
+      "followers_count",
+      "friends_count",
+      "geo_enabled",
+      "id",
+      "lang",
+      "location",
+      "profile_background_image_url",
+      "profile_image_url",
+      "screen_name",
+      "statuses_count",
+      "verified",
+      "average_tweets_per_day",
+      "account_age_days",
+      "account_type"
+    ],
+    "dropped_source_index_columns": [
+      "Unnamed: 0"
+    ],
+    "identity": {
+      "missing_ids": 0,
+      "duplicate_id_rows": 0,
+      "duplicate_ids": 0,
+      "missing_labels": 0,
+      "invalid_labels": 0,
+      "conflicting_ids": 0
+    },
+    "label_counts": {
+      "human": 25013,
+      "bot": 12425
+    },
+    "numeric_columns": {
+      "followers_count": {
+        "missing": 0,
+        "non_numeric": 0,
+        "non_finite": 0,
+        "negative": 0,
+        "fractional": 0,
+        "invalid_total": 0,
+        "output_missing": 0,
+        "valid_zero": 1255
+      },
+      "following_count": {
+        "missing": 0,
+        "non_numeric": 0,
+        "non_finite": 0,
+        "negative": 0,
+        "fractional": 0,
+        "invalid_total": 0,
+        "output_missing": 0,
+        "valid_zero": 6410
+      },
+      "statuses_count": {
+        "missing": 0,
+        "non_numeric": 0,
+        "non_finite": 0,
+        "negative": 0,
+        "fractional": 0,
+        "invalid_total": 0,
+        "output_missing": 0,
+        "valid_zero": 56
+      },
+      "account_age_days": {
+        "missing": 0,
+        "non_numeric": 0,
+        "non_finite": 0,
+        "negative": 0,
+        "fractional": 0,
+        "invalid_total": 0,
+        "output_missing": 0,
+        "valid_zero": 0
+      },
+      "average_tweets_per_day": {
+        "missing": 0,
+        "non_numeric": 0,
+        "non_finite": 0,
+        "negative": 0,
+        "fractional": 0,
+        "invalid_total": 0,
+        "output_missing": 0,
+        "valid_zero": 72
+      }
+    },
+    "bio": {
+      "null": 0,
+      "empty_string": 7256,
+      "null_or_empty": 7256,
+      "whitespace_only_retained": 0,
+      "literal_None_retained": 1
+    },
+    "created_at": {
+      "missing": 0,
+      "unparseable": 0,
+      "used_to_recompute_age": false
+    }
+  },
+  "output": {
+    "rows": 37438,
+    "columns": [
+      "user_id",
+      "follower_following_ratio",
+      "posting_frequency",
+      "account_age_days",
+      "bio_length",
+      "label"
+    ],
+    "model_feature_columns": [
+      "follower_following_ratio",
+      "posting_frequency",
+      "account_age_days",
+      "bio_length"
+    ],
+    "missing_by_feature": {
+      "follower_following_ratio": 0,
+      "posting_frequency": 0,
+      "account_age_days": 0,
+      "bio_length": 0
+    },
+    "arithmetic_overflow_to_missing": {
+      "follower_following_ratio": 0,
+      "posting_frequency": 0
+    },
+    "infinite_feature_values": 0
+  },
+  "formulas": {
+    "follower_following_ratio": "followers_count / max(following_count, 1)",
+    "posting_frequency": "statuses_count / max(account_age_days, 1)",
+    "account_age_days": "Validated account_age_days supplied by the source",
+    "bio_length": "len(description), with empty/null biography length 0"
+  },
+  "assumptions": {
+    "numeric_invalid": "Missing, non-numeric, non-finite or negative values become missing; fractional counts also become missing. Rows are retained. No numeric imputation or scaling.",
+    "zero_denominators": "Valid following=0 or age=0 uses denominator 1; missing/invalid inputs remain missing.",
+    "account_age": "Historical source-supplied age; no observed_at is available. No use of today's date or download date, and no fabricated observation timestamp.",
+    "posting_frequency": "Lifetime average posts/day, not recent posting activity.",
+    "bio": "Empty/null bio has length 0; unavailable bio cannot be distinguished from truly empty bio. Literal None/NA/nan text is preserved. Whitespace and newlines count as characters; Unicode length counts code points, not grapheme clusters.",
+    "identity": "Missing/duplicate IDs and invalid/conflicting labels stop processing; no silent row removal. ID and label are excluded from model inputs."
+  },
+  "posting_frequency_comparison": {
+    "source_column": "average_tweets_per_day",
+    "assumed_rounding_decimals": 3,
+    "absolute_tolerance": 0.0005,
+    "floating_point_margin": 1e-12,
+    "comparable_rows": 37438,
+    "uncomparable_rows": 0,
+    "within_rounding_tolerance": 37438,
+    "beyond_rounding_tolerance": 0,
+    "max_absolute_difference": 0.0005000000000165983,
+    "mean_absolute_difference": 0.0002505923629158624,
+    "interpretation": "Comparison only: differences beyond assumed rounding tolerance are reported, not automatically treated as data errors."
+  },
+  "source": {
+    "file": "twitter_human_bots_dataset.csv",
+    "sha256_before": "b9d97efe538751d8d990cd61cec1661c7cc75bb0a4b1f13dc9ff88115f900a94",
+    "sha256_after": "b9d97efe538751d8d990cd61cec1661c7cc75bb0a4b1f13dc9ff88115f900a94",
+    "unchanged": true
+  },
+  "verification": {
+    "id_label_alignment": true,
+    "row_order_preserved": true
+  }
+}

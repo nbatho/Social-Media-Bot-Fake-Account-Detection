@@ -2,7 +2,7 @@
 
 Dự án học máy phát hiện tài khoản Twitter có hành vi giống bot thông qua các đặc trưng hồ sơ. Dự án sử dụng Isolation Forest và One-Class SVM để phát hiện bất thường, đối chiếu với Gradient Boosting và phân tích các đặc trưng ảnh hưởng đến kết quả phân loại.
 
-> **Trạng thái:** đã có khung mã nguồn, notebook và lệnh kiểm tra CSV. Đang chuẩn bị dữ liệu hồ sơ; chưa có mô hình được huấn luyện hoặc kết quả thực nghiệm.
+> **Trạng thái:** đã triển khai pipeline đọc, kiểm tra và trích xuất bốn đặc trưng từ CSV hồ sơ đầy đủ. Chưa triển khai chia tập hoặc huấn luyện mô hình; chưa có kết quả thực nghiệm mô hình.
 
 ## Mục tiêu
 
@@ -23,24 +23,41 @@ File hiện có: [`dataset/twitter_human_bots_dataset.csv`](dataset/twitter_huma
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Số dòng dữ liệu | 37.438 |
-| Các cột | `id`, `account_type` |
+| Số cột nguồn | 20, gồm một cột index không tên |
 | Nhãn `bot` | 12.425 (33,19%) |
 | Nhãn `human` | 25.013 (66,81%) |
 | ID trùng | 0 |
 | ID hoặc nhãn rỗng | 0 |
 
-Thống kê được kiểm tra ngày **25/10/2026**. File hiện tại chỉ chứa ID và nhãn, chưa có đủ thông tin hồ sơ để tính các đặc trưng yêu cầu. Cần bổ sung metadata tương ứng hoặc sử dụng nguồn dữ liệu có hồ sơ và nhãn trước khi huấn luyện. Loại ID cần được xác minh trước khi ghép dữ liệu; ID không được sử dụng làm đặc trưng dự đoán.
+Thống kê được kiểm tra ngày **25/10/2026** trên CSV hồ sơ đầy đủ đang có trong repository. Các cột cần dùng: `id`, `account_type`, `followers_count`, `friends_count`, `statuses_count`, `created_at`, `description`, `account_age_days`, `average_tweets_per_day`. `friends_count` là số tài khoản đang theo dõi.
 
-## Đặc trưng dự kiến
+Có **7.256 bio là ô rỗng** và **một bio chứa chuỗi `"None"`**. Pipeline giữ nguyên văn bản `"None"` (độ dài 4), vì chưa có bằng chứng đây là ký hiệu thiếu của nguồn. Không dùng các token thiếu mặc định của pandas cho cột văn bản hoặc ID.
 
-| Đặc trưng | Mô tả |
+## Đặc trưng và quy tắc xử lý
+
+| Đặc trưng | Công thức / ý nghĩa |
 | --- | --- |
-| Follower/following ratio | Số người theo dõi chia cho số tài khoản đang theo dõi, có xử lý mẫu số bằng 0 |
-| Posting frequency | Số bài đăng trung bình mỗi ngày trong vòng đời tài khoản tại thời điểm quan sát |
-| Account age | Khoảng thời gian từ ngày tạo tài khoản đến thời điểm quan sát hồ sơ |
-| Bio length | Số ký tự trong phần giới thiệu tài khoản |
+| `follower_following_ratio` | `followers_count / max(following_count, 1)` |
+| `posting_frequency` | `statuses_count / max(account_age_days, 1)`; số bài/ngày trung bình trong vòng đời tài khoản |
+| `account_age_days` | Tuổi tài khoản do nguồn cung cấp, đã kiểm tra kiểu số, giá trị thiếu, âm và vô cực |
+| `bio_length` | Độ dài chuỗi `description`; bio rỗng/null có độ dài 0 theo giả định của nhóm |
 
-Các đặc trưng này cần dữ liệu về số follower, following, tổng số bài đăng, ngày tạo tài khoản, bio và thời điểm quan sát. Hiện chúng chưa có trong CSV nguồn.
+Tuổi tài khoản là giá trị lịch sử của nguồn, **không phải tuổi tại ngày chạy chương trình**. CSV không có `observed_at`, nên không xác định được chính xác thời điểm quan sát; pipeline không tạo giả trường này, không lấy ngày hiện tại/ngày tải file và không tính lại tuổi từ `created_at`. `created_at` được kiểm tra khả năng phân tích ngày giờ, nhưng không dùng để tính đặc trưng. Tần suất đăng là trung bình toàn bộ vòng đời, không phản ánh riêng hoạt động gần đây.
+
+Quy tắc chất lượng dữ liệu:
+
+- Đọc ID dưới dạng chuỗi, ánh xạ `id` → `user_id`, `friends_count` → `following_count`, `human` → `label=0`, `bot` → `label=1`.
+- Chỉ bỏ cột index không tên khi giá trị đúng bằng dãy `0..n-1`. Thiếu cột bắt buộc, ID rỗng/trùng, nhãn không hợp lệ hoặc nhãn mâu thuẫn sẽ báo lỗi và dừng; không âm thầm xóa dòng.
+- Các trường số thiếu, không chuyển được sang số, âm hoặc vô cực được thống kê và chuyển thành giá trị thiếu. Các số đếm phải là số nguyên; tuổi tính theo ngày có thể là số thập phân không âm. Numeric dùng kiểu nullable `Float64` để giữ giá trị thiếu. Các token `""`, `NA`, `N/A`, `NaN`, `null`, `None` (không phân biệt hoa/thường, sau khi bỏ khoảng trắng hai đầu) chỉ được coi là thiếu trong trường số.
+- Following bằng 0 hoặc tuổi bằng 0 là hợp lệ: mẫu số dùng 1. Mẫu số thiếu hoặc tuổi âm không được thay bằng 1; đặc trưng phụ thuộc vẫn thiếu. Không điền trung bình/median, không fit scaler và không loại dòng có đặc trưng thiếu. Nếu phép tính tràn số, kết quả được chuyển thành thiếu và ghi riêng trong báo cáo.
+- Bio null/rỗng có độ dài 0 vì dữ liệu không phân biệt được bio thực sự rỗng với bio chưa thu thập được. Giữ nguyên văn bản `None`, `NA`, `nan`; không biến null thành chuỗi `"nan"`. Unicode được đếm theo code point của Python, không phải số ký tự hiển thị; khoảng trắng và xuống dòng được tính vào độ dài, không cắt nội dung bio.
+- Tự tính `posting_frequency` rồi so sánh với `average_tweets_per_day`. Báo cáo giả định nguồn làm tròn đến 3 chữ số thập phân, dùng sai số tuyệt đối `0.0005` cộng biên số thực `1e-12`. Sai lệch lớn hơn được thống kê, không tự động coi là lỗi hoặc loại dòng.
+
+Đầu ra:
+
+- `dataset/processed/features.csv`: `user_id, follower_following_ratio, posting_frequency, account_age_days, bio_length, label`, đúng thứ tự này. Giá trị số thiếu được ghi thành ô CSV rỗng.
+- `reports/feature_summary.json`: chất lượng từng cột, số dòng giữ/loại, công thức, giả định, so sánh tần suất và SHA-256 nguồn trước/sau.
+- Chỉ bốn cột trong `FEATURE_COLUMNS` là đầu vào mô hình; `user_id` và `label` không phải đặc trưng dự đoán.
 
 ## Phương pháp
 
@@ -85,14 +102,16 @@ Python, pandas, NumPy, scikit-learn, Matplotlib, Seaborn và Jupyter Notebook.
 │   ├── features.py                    # Tạo đặc trưng hồ sơ
 │   ├── train.py                       # Các hàm huấn luyện dùng chung
 │   └── evaluate.py                    # Các hàm tính chỉ số dùng chung
-├── models/                            # Pipeline/model đã fit
+├── tests/                             # Kiểm thử dữ liệu và đặc trưng
+├── models/                            # Dành cho model ở giai đoạn sau
 └── reports/
-    └── figures/                       # Biểu đồ; bảng metrics ở reports/
+    ├── feature_summary.json           # Chất lượng và giả định đặc trưng
+    └── figures/                       # Dành cho biểu đồ giai đoạn sau
 ```
 
 Notebook là nơi thử nghiệm và trình bày kết quả; các hàm dùng chung nằm trong `src/`. Đường dẫn trong `src/config.py` được tính từ vị trí dự án, không gắn với máy của một thành viên.
 
-**Phần hiện chạy được:** `python -m src.data` kiểm tra CSV nguồn; `load_profiles` đọc CSV hồ sơ đã chuẩn hóa và kiểm tra các cột bắt buộc. Các hàm chia tập, tạo đặc trưng, huấn luyện và đánh giá mới có khai báo cùng hướng dẫn TODO; gọi chúng sẽ báo `NotImplementedError` cho đến khi được triển khai. Các notebook có cell khởi tạo/import và danh sách công việc, chưa có kết quả mô hình.
+**Phần hiện chạy được:** `python -m src.data` audit CSV; `load_profiles()` trả về `(profiles, quality)` đã chuẩn hóa và kiểm tra; `build_features(profiles)` tính bốn đặc trưng; `python -m src.features` chạy toàn bộ pipeline và lưu kết quả. Notebook 01 gọi các hàm dùng chung và giữ lại các cell thực hành trước đó của người học. Chia tập, huấn luyện và đánh giá vẫn là khung TODO.
 
 `dataset/processed/` và `models/` được giữ trong Git bằng `.gitkeep`; dữ liệu và mô hình sinh ra bên trong được bỏ qua. Biểu đồ và bảng kết quả được lưu trong `reports/` để nhóm chọn đưa vào báo cáo/repository.
 
@@ -184,21 +203,37 @@ python -m pip check
 
 Nếu các thư viện import thành công, chương trình in `Môi trường OK`. Lệnh `pip check` cần trả về `No broken requirements found`.
 
-Kiểm tra CSV nguồn bằng lệnh sau; lệnh này chỉ dùng thư viện chuẩn Python nên có thể chạy trước khi cài xong requirements:
+Sau khi cài requirements, chạy pipeline từ thư mục gốc dự án:
 
 **PowerShell:**
 
 ```powershell
-.\.venv\Scripts\python.exe -m src.data
+.\.venv\Scripts\python.exe -m src.features
 ```
 
 **Bash — sau khi kích hoạt `.venv`:**
 
 ```bash
-python -m src.data
+python -m src.features
 ```
 
-Lệnh in số dòng, các cột, phân bố nhãn, ID trùng, giá trị thiếu và các cột hồ sơ cần bổ sung. Với dữ liệu hiện tại, số dòng là `37438`, gồm `12425` bot và `25013` human.
+Lệnh tạo `features.csv` và `feature_summary.json`. Kết quả trên CSV hiện tại: **37.438 dòng × 6 cột**, giữ toàn bộ dòng, không có đặc trưng thiếu hoặc vô cực. ID/label khớp nguồn theo thứ tự; nguồn được kiểm tra SHA-256 trước/sau. Chạy lại sẽ tạo lại hai đầu ra, không ghi vào CSV nguồn.
+
+Chạy kiểm thử từ thư mục gốc:
+
+PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+Bash (sau khi kích hoạt `.venv`):
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Bộ kiểm thử dùng `unittest` có sẵn: ID dài/giữ số 0 đầu, nhãn và ID lỗi, index nguồn, following/tuổi bằng 0, tuổi âm, dữ liệu số thiếu/không hợp lệ/vô cực, bio Unicode/null/xuống dòng, làm tròn, bảo toàn CSV nguồn và chạy lại nhất quán.
 
 ### 5. Chạy notebook
 
@@ -206,7 +241,7 @@ Lệnh in số dòng, các cột, phân bố nhãn, ID trùng, giá trị thiế
 
 1. Mở thư mục gốc dự án bằng **File → Open Folder**.
 2. Mở Command Palette (`Ctrl + Shift + P` trên Windows/Linux hoặc `Cmd + Shift + P` trên macOS), chọn **Python: Select Interpreter** rồi chọn Python của dự án: `.venv\Scripts\python.exe` trên Windows hoặc `.venv/bin/python` trên Linux/macOS/WSL.
-3. Mở [`notebooks/01_data_exploration.ipynb`](notebooks/01_data_exploration.ipynb) để bắt đầu kiểm tra dữ liệu; tiếp tục notebook 02–04 khi có dữ liệu hồ sơ và đã triển khai các hàm tương ứng.
+3. Mở [`notebooks/01_data_exploration.ipynb`](notebooks/01_data_exploration.ipynb) để kiểm tra dữ liệu và gọi pipeline đặc trưng. Notebook 02–04 dành cho giai đoạn sau khi triển khai các hàm tương ứng.
 4. Chọn **Select Kernel → Python Environments → .venv**, sau đó chạy từng cell.
 
 **Hoặc dùng JupyterLab trên trình duyệt:**
@@ -225,25 +260,9 @@ python -m jupyterlab
 
 Mở địa chỉ local được in trong terminal nếu trình duyệt chưa tự mở. Vào `notebooks/` và mở notebook 01 với kernel Python của môi trường; nhấn `Ctrl + C` trong terminal khi muốn dừng JupyterLab.
 
-Trong notebook lưu tại thư mục gốc, chạy cell sau để kiểm tra dữ liệu:
+Trong notebook 01, chạy cell thiết lập `project_root`, sau đó phần **Pipeline đặc trưng dùng chung**. Phần này gọi các hàm trong `src/` để đọc/kiểm tra dữ liệu, tính đặc trưng, lưu đầu ra và hiển thị thống kê chất lượng. Các cell thực hành trước đó được giữ nguyên để tham khảo; cách đọc chính thức là `load_profiles()` để bảo toàn văn bản bio. Có thể chạy lại pipeline từ notebook mà không chép công thức hoặc logic làm sạch vào cell.
 
-```python
-from pathlib import Path
-import sys
-import pandas as pd
-
-print("Python đang dùng:", sys.executable)
-data_path = Path("dataset/twitter_human_bots_dataset.csv")
-df = pd.read_csv(data_path, dtype={"id": "string"})
-print("Kích thước:", df.shape)
-print("Các cột:", df.columns.tolist())
-print(df["account_type"].value_counts(dropna=False))
-df.head()
-```
-
-Với CSV hiện tại, kích thước mong đợi là `(37438, 2)`. Đường dẫn Python hiển thị cần trỏ vào `.venv`. Nếu notebook nằm trong thư mục con, điều chỉnh đường dẫn CSV theo thư mục làm việc của kernel.
-
-**Notebook 02–04 và các hàm huấn luyện hiện là khung để hoàn thiện.** Bắt đầu bằng cell audit trong notebook 01; chỉ triển khai và chạy mô hình khi có dữ liệu hồ sơ đủ đặc trưng. Các notebook đã có phần thiết lập đường dẫn để import `src/` khi mở từ thư mục gốc hoặc `notebooks/`.
+**Notebook 02–04 và các hàm huấn luyện vẫn là khung.** Phần triển khai hiện tại chỉ xử lý dữ liệu và đặc trưng; chưa chia tập, vẽ EDA phục vụ chọn đặc trưng hoặc huấn luyện mô hình. `docs/` tiếp tục được bỏ qua bởi Git, không thay đổi ghi chú nội bộ.
 
 ### 6. Đồng bộ môi trường giữa các thành viên
 
