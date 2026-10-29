@@ -7,11 +7,15 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import train_test_split
 
 from .config import (
     COLUMN_MAPPING, COUNT_COLUMNS, LABEL_MAPPING, NUMERIC_COLUMNS,
-    NUMERIC_MISSING_MARKERS, RAW_LABELS_PATH, RAW_PROFILE_COLUMNS,
+    NUMERIC_MISSING_MARKERS, RANDOM_STATE, RAW_LABELS_PATH, RAW_PROFILE_COLUMNS,
+    SPLIT_FRACTIONS, SPLIT_PATH,
 )
+
+SPLIT_NAMES = tuple(SPLIT_FRACTIONS)
 
 
 def audit_labels(path: str | Path = RAW_LABELS_PATH) -> dict:
@@ -173,13 +177,71 @@ def normalize_profiles(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     return profiles, quality
 
 
-def split_features(features):
-    """TODO: return train/validation/test DataFrames and persist their user IDs.
+def assign_splits(user_ids: pd.Series, labels: pd.Series) -> pd.Series:
+    """Stratified user_id -> split name using the shared fractions and seed."""
+    if not np.isclose(sum(SPLIT_FRACTIONS.values()), 1):
+        raise ValueError(f"SPLIT_FRACTIONS must sum to 1: {SPLIT_FRACTIONS}")
+    positions = np.arange(len(user_ids))
+    labels = labels.to_numpy()
+    rest, test = train_test_split(
+        positions, test_size=SPLIT_FRACTIONS["test"],
+        stratify=labels, random_state=RANDOM_STATE,
+    )
+    # Validation share is rescaled to the rows left after removing test.
+    train, validation = train_test_split(
+        rest, test_size=SPLIT_FRACTIONS["validation"] / (1 - SPLIT_FRACTIONS["test"]),
+        stratify=labels[rest], random_state=RANDOM_STATE,
+    )
+    names = np.empty(len(user_ids), dtype=object)
+    names[train], names[validation], names[test] = "train", "validation", "test"
+    return pd.Series(names, index=user_ids.to_numpy(), name="split", dtype="string")
 
-    Follow the source's official split when available; otherwise use the shared
-    fractions and seed in config.py. Keep each user in exactly one split.
+
+def load_split(path: str | Path = SPLIT_PATH) -> pd.Series:
+    """Read a saved user_id -> split assignment, keeping IDs as text."""
+    saved = pd.read_csv(path, dtype="string", keep_default_na=False, encoding="utf-8")
+    if list(saved.columns) != ["user_id", "split"]:
+        raise ValueError(f"Split file {path} must have columns user_id, split.")
+    if saved["user_id"].duplicated().any() or not saved["split"].isin(SPLIT_NAMES).all():
+        raise ValueError(f"Split file {path} has duplicate user IDs or unknown split names.")
+    return saved.set_index("user_id")["split"]
+
+
+def split_features(
+    features: pd.DataFrame, path: str | Path = SPLIT_PATH
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Return (train, validation, test) rows; every user lands in exactly one.
+
+    The Kaggle source has no official split, so the first run stratifies by
+    label with SPLIT_FRACTIONS and RANDOM_STATE and saves user_id -> split.
+    Later runs reuse that file, so all notebooks see the same users even if
+    row order or library versions change. A file that does not cover exactly
+    these users stops processing instead of being silently replaced.
     """
-    raise NotImplementedError("Chưa triển khai chia tập dùng chung.")
+    path = Path(path)
+    missing = {"user_id", "label"} - set(features.columns)
+    if missing:
+        raise ValueError(f"Missing columns for splitting: {sorted(missing)}")
+    user_ids = features["user_id"].astype("string")
+    if user_ids.isna().any() or user_ids.duplicated().any():
+        raise ValueError("user_id must be present and unique to split by user.")
+    if not features["label"].isin(LABEL_MAPPING.values()).all():
+        raise ValueError(f"label must use {LABEL_MAPPING}.")
+
+    if path.exists():
+        assignment = load_split(path)
+        if set(assignment.index) != set(user_ids):
+            raise ValueError(
+                f"Saved split {path} does not match these user IDs; "
+                "delete it only if the team agrees to a new split."
+            )
+    else:
+        assignment = assign_splits(user_ids, features["label"])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        assignment.rename_axis("user_id").reset_index().to_csv(path, index=False, encoding="utf-8")
+
+    split = user_ids.map(assignment).to_numpy()
+    return tuple(features.loc[split == name] for name in SPLIT_NAMES)
 
 
 if __name__ == "__main__":

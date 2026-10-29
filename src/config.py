@@ -10,6 +10,7 @@ MODELS_DIR = PROJECT_ROOT / "models"
 REPORTS_DIR = PROJECT_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 FEATURES_PATH = PROCESSED_DIR / "features.csv"
+SPLIT_PATH = PROCESSED_DIR / "split.csv"
 FEATURE_SUMMARY_PATH = REPORTS_DIR / "feature_summary.json"
 
 RANDOM_STATE = 42

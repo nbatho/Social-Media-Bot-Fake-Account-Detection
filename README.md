@@ -2,7 +2,7 @@
 
 Dự án học máy phát hiện tài khoản Twitter có hành vi giống bot thông qua các đặc trưng hồ sơ. Dự án sử dụng Isolation Forest và One-Class SVM để phát hiện bất thường, đối chiếu với Gradient Boosting và phân tích các đặc trưng ảnh hưởng đến kết quả phân loại.
 
-> **Trạng thái:** đã triển khai pipeline đọc, kiểm tra và trích xuất bốn đặc trưng từ CSV hồ sơ đầy đủ. Chưa triển khai chia tập hoặc huấn luyện mô hình; chưa có kết quả thực nghiệm mô hình.
+> **Trạng thái:** đã triển khai pipeline đọc, kiểm tra và trích xuất bốn đặc trưng từ CSV hồ sơ đầy đủ, cùng bộ chia train/validation/test dùng chung. Chưa triển khai huấn luyện mô hình; chưa có kết quả thực nghiệm mô hình.
 
 ## Mục tiêu
 
@@ -111,7 +111,9 @@ Python, pandas, NumPy, scikit-learn, Matplotlib, Seaborn và Jupyter Notebook.
 
 Notebook là nơi thử nghiệm và trình bày kết quả; các hàm dùng chung nằm trong `src/`. Đường dẫn trong `src/config.py` được tính từ vị trí dự án, không gắn với máy của một thành viên.
 
-**Phần hiện chạy được:** `python -m src.data` audit CSV; `load_profiles()` trả về `(profiles, quality)` đã chuẩn hóa và kiểm tra; `build_features(profiles)` tính bốn đặc trưng; `python -m src.features` chạy toàn bộ pipeline và lưu kết quả. Notebook 01 gọi các hàm dùng chung và giữ lại các cell thực hành trước đó của người học. Chia tập, huấn luyện và đánh giá vẫn là khung TODO.
+**Phần hiện chạy được:** `python -m src.data` audit CSV; `load_profiles()` trả về `(profiles, quality)` đã chuẩn hóa và kiểm tra; `build_features(profiles)` tính bốn đặc trưng; `python -m src.features` chạy toàn bộ pipeline và lưu kết quả; `split_features(features)` trả về `(train, validation, test)`. Notebook 01 gọi các hàm dùng chung và giữ lại các cell thực hành trước đó của người học. Huấn luyện và đánh giá vẫn là khung TODO.
+
+**Chia tập:** nguồn không có split chính thức, nên tài khoản được chia 60/20/20, stratify theo nhãn, seed `RANDOM_STATE`. Mỗi `user_id` thuộc đúng một tập. Lần chạy đầu lưu `user_id → split` vào `dataset/processed/split.csv`; các lần sau dùng lại file này để mọi notebook có cùng tập kiểm thử. Nếu file không khớp đúng tập `user_id` hiện có, hàm báo lỗi chứ không tự tạo split mới. Trên CSV hiện tại: train 22.462, validation 7.488, test 7.488 dòng; tỷ lệ bot mỗi tập là 33,19%.
 
 `dataset/processed/` và `models/` được giữ trong Git bằng `.gitkeep`; dữ liệu và mô hình sinh ra bên trong được bỏ qua. Biểu đồ và bảng kết quả được lưu trong `reports/` để nhóm chọn đưa vào báo cáo/repository.
 
@@ -262,7 +264,7 @@ Mở địa chỉ local được in trong terminal nếu trình duyệt chưa t�
 
 Trong notebook 01, chạy cell thiết lập `project_root`, sau đó phần **Pipeline đặc trưng dùng chung**. Phần này gọi các hàm trong `src/` để đọc/kiểm tra dữ liệu, tính đặc trưng, lưu đầu ra và hiển thị thống kê chất lượng. Các cell thực hành trước đó được giữ nguyên để tham khảo; cách đọc chính thức là `load_profiles()` để bảo toàn văn bản bio. Có thể chạy lại pipeline từ notebook mà không chép công thức hoặc logic làm sạch vào cell.
 
-**Notebook 02–04 và các hàm huấn luyện vẫn là khung.** Phần triển khai hiện tại chỉ xử lý dữ liệu và đặc trưng; chưa chia tập, vẽ EDA phục vụ chọn đặc trưng hoặc huấn luyện mô hình. `docs/` tiếp tục được bỏ qua bởi Git, không thay đổi ghi chú nội bộ.
+**Notebook 02–04 và các hàm huấn luyện vẫn là khung.** Phần triển khai hiện tại xử lý dữ liệu, đặc trưng và chia tập; chưa vẽ EDA phục vụ chọn đặc trưng hoặc huấn luyện mô hình. `docs/` tiếp tục được bỏ qua bởi Git, không thay đổi ghi chú nội bộ.
 
 ### 6. Đồng bộ môi trường giữa các thành viên
 
