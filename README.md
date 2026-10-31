@@ -74,7 +74,28 @@ Các mô hình dùng cùng bộ đặc trưng và tập kiểm thử. Tiền x�
 
 Quy ước **`human = 0`, `bot = 1`**. Các chỉ số gồm Precision, Recall, F1 cho lớp bot, Macro-F1, Average Precision (AP), ROC-AUC và Accuracy; kèm confusion matrix, đường Precision–Recall và thời gian chạy.
 
-Feature importance của Gradient Boosting và permutation importance được sử dụng để phân tích ảnh hưởng của các đặc trưng. Kết quả sẽ được bổ sung sau khi hoàn thành thực nghiệm; hiện chưa có số liệu hiệu năng để công bố.
+Feature importance của Gradient Boosting và permutation importance được sử dụng để phân tích ảnh hưởng của các đặc trưng.
+
+### Kết quả trên tập test
+
+Tập test gồm 7.488 tài khoản (33,2% bot). Cấu hình và ngưỡng được khóa trên validation trước khi chạy test. Số liệu đầy đủ, kể cả thời gian chạy, nằm trong [`reports/metrics.csv`](reports/metrics.csv).
+
+| Mô hình | Thiết lập | Precision | Recall | F1 bot | Macro-F1 | AP | ROC-AUC | Accuracy |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Dummy | mặc định | 0,000 | 0,000 | 0,000 | 0,401 | 0,332 | 0,500 | 0,668 |
+| Isolation Forest | mặc định | 0,285 | 0,090 | 0,137 | 0,448 | 0,281 | 0,368 | 0,623 |
+| Isolation Forest | ngưỡng validation | 0,332 | 0,998 | 0,498 | 0,249 | 0,281 | 0,368 | 0,332 |
+| One-Class SVM | mặc định | 0,361 | 0,054 | 0,094 | 0,440 | 0,373 | 0,564 | 0,654 |
+| One-Class SVM | ngưỡng validation | 0,348 | 0,864 | 0,496 | 0,403 | 0,373 | 0,564 | 0,418 |
+| Gradient Boosting | mặc định | 0,755 | 0,641 | 0,693 | 0,779 | 0,791 | 0,863 | 0,812 |
+| Gradient Boosting | ngưỡng validation | 0,696 | 0,729 | 0,712 | 0,782 | 0,791 | 0,863 | 0,804 |
+
+- Gradient Boosting tốt nhất rõ rệt. Hai detector không vượt mốc đơn giản: gắn nhãn tất cả là bot đã cho F1 lớp bot 0,498, và bot trong dữ liệu không phải điểm ngoại lai trong không gian bốn đặc trưng này.
+- Mức giảm AP khi xáo trộn từng đặc trưng trên validation: `posting_frequency` 0,215; `follower_following_ratio` 0,165; `account_age_days` 0,162; `bio_length` 0,079.
+- Dự đoán sai có quy luật: bot bị bỏ sót có hồ sơ giống người thật, còn người thật bị gắn nhầm có hồ sơ giống bot (bio ngắn hoặc rỗng, ít đăng bài).
+- Giới hạn: chỉ dùng bốn đặc trưng hồ sơ, dữ liệu được chia ngẫu nhiên nên chưa kiểm chứng trên tài khoản mới, và kết quả là ước lượng điểm trên một lần chia. Điểm số chỉ phản ánh mức giống nhãn `bot`, không đủ để kết luận tài khoản giả mạo hay lừa đảo.
+
+Biểu đồ nằm trong [`reports/figures/`](reports/figures/); phân tích chi tiết ở notebook 04.
 
 ## Công nghệ dự kiến
 
