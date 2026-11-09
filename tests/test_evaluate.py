@@ -24,6 +24,17 @@ class EvaluateTests(unittest.TestCase):
         # Bots sit at ranks 1, 2 and 4: (1 + 1 + 3/4) / 3.
         self.assertAlmostEqual(metrics["ap"], (1 + 1 + 3 / 4) / 3)
 
+    def test_larger_scores_must_mean_more_bot_like(self):
+        y_true = [0, 0, 1, 1]
+        y_pred = [0, 0, 1, 1]
+        aligned = evaluate_predictions(y_true, y_pred, [0.1, 0.2, 0.8, 0.9])
+        reversed_scores = evaluate_predictions(y_true, y_pred, [0.9, 0.8, 0.2, 0.1])
+        self.assertEqual(aligned["roc_auc"], 1.0)
+        self.assertEqual(aligned["ap"], 1.0)
+        # Scores are never flipped: a lower-is-bot score must be negated by the caller.
+        self.assertEqual(reversed_scores["roc_auc"], 0.0)
+        self.assertEqual(reversed_scores["f1_bot"], 1.0)
+
     def test_no_predicted_bots_counts_as_zero_not_error(self):
         metrics = evaluate_predictions([0, 0, 1], [0, 0, 0], [0.0, 0.0, 0.0])
         self.assertEqual(metrics["precision_bot"], 0)
