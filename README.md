@@ -95,7 +95,9 @@ Tập test gồm 7.488 tài khoản (33,2% bot). Cấu hình và ngưỡng đư�
 - Dự đoán sai có quy luật: bot bị bỏ sót có hồ sơ giống người thật, còn người thật bị gắn nhầm có hồ sơ giống bot (bio ngắn hoặc rỗng, ít đăng bài).
 - Giới hạn: chỉ dùng bốn đặc trưng hồ sơ, dữ liệu được chia ngẫu nhiên nên chưa kiểm chứng trên tài khoản mới, và kết quả là ước lượng điểm trên một lần chia. Điểm số chỉ phản ánh mức giống nhãn `bot`, không đủ để kết luận tài khoản giả mạo hay lừa đảo.
 
-Biểu đồ nằm trong [`reports/figures/`](reports/figures/); phân tích chi tiết ở notebook 04.
+Biểu đồ nằm trong [`reports/figures/`](reports/figures/); phân tích chi tiết ở notebook 04. Mỗi dòng của `reports/metrics.csv` ghi tập đánh giá, file model, cấu hình và phiên bản scikit-learn.
+
+**Lịch sử sử dụng tập test:** ngày 29/10/2026 có xem thống kê mô tả theo nhãn trên toàn bộ dữ liệu, kể cả test, trước khi chọn `log1p` cho One-Class SVM. Ngày 31/10/2026 đánh giá test lần đầu, sau khi đã khóa cấu hình và ngưỡng trên validation. Không cấu hình nào được chọn lại theo kết quả test. Gradient Boosting và Dummy trong bảng trên là bản huấn luyện tạm trong khi chờ notebook 03 của Nguyễn Bá Thọ; khi chạy lại với model chính thức, số liệu cần cập nhật và đó là một lần đánh giá test mới. Chi tiết ở notebook 04.
 
 ## Công nghệ dự kiến
 
