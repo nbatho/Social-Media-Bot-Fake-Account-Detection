@@ -1,0 +1,156 @@
+{
+  "evaluated_at_utc": "2026-11-10T03:39:12.168653+00:00",
+  "evaluation_split": "test",
+  "test_rows": 7488,
+  "validation_rows": 7488,
+  "test_used_for_selection": false,
+  "test_history": "See notebook 04: prior descriptive/test use and interim-model evaluations; 2026-11-10 integration evaluates the official notebook-03 models.",
+  "metrics_sha256": "bc7dc4e160da55374e8d97b074950b5d83ba01ae980637f81f526a82694ee394",
+  "code_sha256": {
+    "src/comparison.py": "f73361c9001eb110acc67b1e15e6172662a9ec5975a7f9eb787affcc96c4163c",
+    "src/evaluate.py": "908fa1d52c48f473fc393e1404b3d47abe8bffe1672529a9a6da984092ae9b59",
+    "src/train.py": "d0765ee3ab276862037c1c8d111a5c27d9241b6b1c91072bf5ae7b909453bf8f"
+  },
+  "models": {
+    "dummy": {
+      "run_id": "20261110T033850Z-7df46c79",
+      "model_sha256": "22eadb8a9ada89ac0ac01e9a51ae15a2f38f4dad4f76403ee50687ba5eabe5f1",
+      "config": {
+        "constant": null,
+        "random_state": null,
+        "strategy": "most_frequent"
+      },
+      "thresholds": {
+        "default": 0.5
+      },
+      "provenance": {
+        "source_sha256": "b9d97efe538751d8d990cd61cec1661c7cc75bb0a4b1f13dc9ff88115f900a94",
+        "split_sha256": "d162338f765ea03ce4081fc8b3fc4fa65048fa9c544bb6f4e12f10371f6ffe19",
+        "split_fractions": {
+          "train": 0.6,
+          "validation": 0.2,
+          "test": 0.2
+        },
+        "split_seed": 42,
+        "train_rows": 22462,
+        "validation_rows": 7488,
+        "code_sha256": {
+          "src/config.py": "dc9f6208938e5a6965e54619e34b6374087fbbcd4e76d313f92aa240f7bc4d5f",
+          "src/data.py": "5c89ef20213890f3fa879b114bbbc6d44493105e48b7d65dcd22e3a2fb343e8f",
+          "src/features.py": "b1759bec8a057b7f896efe575b50487de489b6dc696889362bd7a70e40018cda",
+          "src/train.py": "d0765ee3ab276862037c1c8d111a5c27d9241b6b1c91072bf5ae7b909453bf8f",
+          "src/evaluate.py": "908fa1d52c48f473fc393e1404b3d47abe8bffe1672529a9a6da984092ae9b59",
+          "src/supervised.py": "7bc1e852462f77531563b6f520a8e732862ed630185725a1ae5c0a834068f6d4"
+        },
+        "test_history": "Notebook 04 on importance-analysis records prior test use with interim models. This run does not score test or use test for selection."
+      },
+      "sklearn_version": "1.9.1"
+    },
+    "isolation_forest": {
+      "run_id": "20261110T033847Z-7441c005",
+      "model_sha256": "afe3698d026a8297acbdb8155e2adfd31ff34c9d2cc3ab357312003739b2bba8",
+      "config": {
+        "n_estimators": 300,
+        "contamination": "auto"
+      },
+      "thresholds": {
+        "default": null,
+        "validation_f1": -0.12769819313697
+      },
+      "provenance": {
+        "source_sha256": "b9d97efe538751d8d990cd61cec1661c7cc75bb0a4b1f13dc9ff88115f900a94",
+        "split_sha256": "d162338f765ea03ce4081fc8b3fc4fa65048fa9c544bb6f4e12f10371f6ffe19",
+        "train_rows": 22462,
+        "validation_rows": 7488,
+        "split_seed": 42,
+        "code_sha256": {
+          "src/config.py": "dc9f6208938e5a6965e54619e34b6374087fbbcd4e76d313f92aa240f7bc4d5f",
+          "src/data.py": "5c89ef20213890f3fa879b114bbbc6d44493105e48b7d65dcd22e3a2fb343e8f",
+          "src/features.py": "b1759bec8a057b7f896efe575b50487de489b6dc696889362bd7a70e40018cda",
+          "src/train.py": "d0765ee3ab276862037c1c8d111a5c27d9241b6b1c91072bf5ae7b909453bf8f",
+          "src/evaluate.py": "908fa1d52c48f473fc393e1404b3d47abe8bffe1672529a9a6da984092ae9b59"
+        }
+      },
+      "sklearn_version": "1.9.1"
+    },
+    "one_class_svm": {
+      "run_id": "20261110T033847Z-7441c005",
+      "model_sha256": "eb0c8215dbc72233dabff9f87dfb0ecad9a015f7e7a821b74d9f61e43b11f1e3",
+      "config": {
+        "nu": 0.05,
+        "gamma": 0.05
+      },
+      "thresholds": {
+        "default": null,
+        "validation_f1": -97.5574442269172
+      },
+      "provenance": {
+        "source_sha256": "b9d97efe538751d8d990cd61cec1661c7cc75bb0a4b1f13dc9ff88115f900a94",
+        "split_sha256": "d162338f765ea03ce4081fc8b3fc4fa65048fa9c544bb6f4e12f10371f6ffe19",
+        "train_rows": 22462,
+        "validation_rows": 7488,
+        "split_seed": 42,
+        "code_sha256": {
+          "src/config.py": "dc9f6208938e5a6965e54619e34b6374087fbbcd4e76d313f92aa240f7bc4d5f",
+          "src/data.py": "5c89ef20213890f3fa879b114bbbc6d44493105e48b7d65dcd22e3a2fb343e8f",
+          "src/features.py": "b1759bec8a057b7f896efe575b50487de489b6dc696889362bd7a70e40018cda",
+          "src/train.py": "d0765ee3ab276862037c1c8d111a5c27d9241b6b1c91072bf5ae7b909453bf8f",
+          "src/evaluate.py": "908fa1d52c48f473fc393e1404b3d47abe8bffe1672529a9a6da984092ae9b59"
+        }
+      },
+      "sklearn_version": "1.9.1"
+    },
+    "gradient_boosting": {
+      "run_id": "20261110T033850Z-7df46c79",
+      "model_sha256": "cf9e800f22fbe1509ed66e5e16400ff85343176b65da6f961633a9d11c4693d4",
+      "config": {
+        "ccp_alpha": 0.0,
+        "criterion": "deprecated",
+        "init": null,
+        "learning_rate": 0.1,
+        "loss": "log_loss",
+        "max_depth": 4,
+        "max_features": null,
+        "max_leaf_nodes": null,
+        "min_impurity_decrease": 0.0,
+        "min_samples_leaf": 5,
+        "min_samples_split": 2,
+        "min_weight_fraction_leaf": 0.0,
+        "n_estimators": 200,
+        "n_iter_no_change": null,
+        "random_state": 42,
+        "subsample": 1.0,
+        "tol": 0.0001,
+        "validation_fraction": 0.1,
+        "verbose": 0,
+        "warm_start": false
+      },
+      "thresholds": {
+        "default": 0.5,
+        "validation_f1": 0.36915560905621475
+      },
+      "provenance": {
+        "source_sha256": "b9d97efe538751d8d990cd61cec1661c7cc75bb0a4b1f13dc9ff88115f900a94",
+        "split_sha256": "d162338f765ea03ce4081fc8b3fc4fa65048fa9c544bb6f4e12f10371f6ffe19",
+        "split_fractions": {
+          "train": 0.6,
+          "validation": 0.2,
+          "test": 0.2
+        },
+        "split_seed": 42,
+        "train_rows": 22462,
+        "validation_rows": 7488,
+        "code_sha256": {
+          "src/config.py": "dc9f6208938e5a6965e54619e34b6374087fbbcd4e76d313f92aa240f7bc4d5f",
+          "src/data.py": "5c89ef20213890f3fa879b114bbbc6d44493105e48b7d65dcd22e3a2fb343e8f",
+          "src/features.py": "b1759bec8a057b7f896efe575b50487de489b6dc696889362bd7a70e40018cda",
+          "src/train.py": "d0765ee3ab276862037c1c8d111a5c27d9241b6b1c91072bf5ae7b909453bf8f",
+          "src/evaluate.py": "908fa1d52c48f473fc393e1404b3d47abe8bffe1672529a9a6da984092ae9b59",
+          "src/supervised.py": "7bc1e852462f77531563b6f520a8e732862ed630185725a1ae5c0a834068f6d4"
+        },
+        "test_history": "Notebook 04 on importance-analysis records prior test use with interim models. This run does not score test or use test for selection."
+      },
+      "sklearn_version": "1.9.1"
+    }
+  }
+}

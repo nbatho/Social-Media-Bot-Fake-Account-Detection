@@ -1,5 +1,5 @@
 {
-  "run_id": "20261110T033350Z-c91e9e5e",
+  "run_id": "20261110T033850Z-7df46c79",
   "provenance": {
     "source_sha256": "b9d97efe538751d8d990cd61cec1661c7cc75bb0a4b1f13dc9ff88115f900a94",
     "split_sha256": "d162338f765ea03ce4081fc8b3fc4fa65048fa9c544bb6f4e12f10371f6ffe19",
@@ -50,10 +50,10 @@
       "threshold": 0.5,
       "threshold_comparison": ">=",
       "random_state": null,
-      "fit_seconds": 0.03668870000001334,
+      "fit_seconds": 0.0332803999999669,
       "validation_metrics": [
         {
-          "run_id": "20261110T033350Z-c91e9e5e",
+          "run_id": "20261110T033850Z-7df46c79",
           "model": "dummy",
           "split": "validation",
           "threshold_policy": "default",
@@ -71,8 +71,8 @@
           "tp": 0,
           "confusion_matrix": "[[5003, 0], [2485, 0]]",
           "flagged_share": 0.0,
-          "fit_seconds": 0.03668870000001334,
-          "score_seconds": 0.0033180000000356813,
+          "fit_seconds": 0.0332803999999669,
+          "score_seconds": 0.00169729999925039,
           "rows": 7488,
           "model_path": "models/dummy.joblib",
           "split_sha256": "d162338f765ea03ce4081fc8b3fc4fa65048fa9c544bb6f4e12f10371f6ffe19"
@@ -86,7 +86,7 @@
         "pandas": "3.1.0",
         "joblib": "1.6.0"
       },
-      "run_id": "20261110T033350Z-c91e9e5e",
+      "run_id": "20261110T033850Z-7df46c79",
       "provenance": {
         "source_sha256": "b9d97efe538751d8d990cd61cec1661c7cc75bb0a4b1f13dc9ff88115f900a94",
         "split_sha256": "d162338f765ea03ce4081fc8b3fc4fa65048fa9c544bb6f4e12f10371f6ffe19",
@@ -161,10 +161,10 @@
       "threshold": 0.36915560905621475,
       "threshold_comparison": ">=",
       "random_state": 42,
-      "fit_seconds": 5.002811700000166,
+      "fit_seconds": 4.331683399999747,
       "validation_metrics": [
         {
-          "run_id": "20261110T033350Z-c91e9e5e",
+          "run_id": "20261110T033850Z-7df46c79",
           "model": "gradient_boosting",
           "split": "validation",
           "threshold_policy": "default",
@@ -182,14 +182,14 @@
           "tp": 1564,
           "confusion_matrix": "[[4553, 450], [921, 1564]]",
           "flagged_share": 0.2689636752136752,
-          "fit_seconds": 5.002811700000166,
-          "score_seconds": 0.020647899999858055,
+          "fit_seconds": 4.331683399999747,
+          "score_seconds": 0.014483400000244728,
           "rows": 7488,
           "model_path": "models/gradient_boosting.joblib",
           "split_sha256": "d162338f765ea03ce4081fc8b3fc4fa65048fa9c544bb6f4e12f10371f6ffe19"
         },
         {
-          "run_id": "20261110T033350Z-c91e9e5e",
+          "run_id": "20261110T033850Z-7df46c79",
           "model": "gradient_boosting",
           "split": "validation",
           "threshold_policy": "validation_f1",
@@ -207,8 +207,8 @@
           "tp": 1823,
           "confusion_matrix": "[[4165, 838], [662, 1823]]",
           "flagged_share": 0.35536858974358976,
-          "fit_seconds": 5.002811700000166,
-          "score_seconds": 0.020647899999858055,
+          "fit_seconds": 4.331683399999747,
+          "score_seconds": 0.014483400000244728,
           "rows": 7488,
           "model_path": "models/gradient_boosting.joblib",
           "split_sha256": "d162338f765ea03ce4081fc8b3fc4fa65048fa9c544bb6f4e12f10371f6ffe19"
@@ -222,7 +222,7 @@
         "pandas": "3.1.0",
         "joblib": "1.6.0"
       },
-      "run_id": "20261110T033350Z-c91e9e5e",
+      "run_id": "20261110T033850Z-7df46c79",
       "provenance": {
         "source_sha256": "b9d97efe538751d8d990cd61cec1661c7cc75bb0a4b1f13dc9ff88115f900a94",
         "split_sha256": "d162338f765ea03ce4081fc8b3fc4fa65048fa9c544bb6f4e12f10371f6ffe19",
@@ -253,5 +253,5 @@
     }
   },
   "selected_candidate_id": 5,
-  "total_seconds": 18.053580200000397
+  "total_seconds": 15.812176500000533
 }

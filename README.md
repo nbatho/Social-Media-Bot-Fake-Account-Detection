@@ -2,7 +2,7 @@
 
 Dự án học máy phát hiện tài khoản Twitter có hành vi giống bot thông qua các đặc trưng hồ sơ. Dự án sử dụng Isolation Forest và One-Class SVM để phát hiện bất thường, đối chiếu với Gradient Boosting và phân tích các đặc trưng ảnh hưởng đến kết quả phân loại.
 
-> **Trạng thái:** đã có pipeline đặc trưng, split dùng chung, EDA trên train, hai mô hình anomaly (notebook 02), Dummy và Gradient Boosting (notebook 03), cùng hàm đánh giá có kiểm thử. Kết quả hiện báo cáo trên validation; notebook 04 vẫn là khung. Ghi chú cũ nhắc test đã được dùng và AUC 0,863 chưa có thí nghiệm nguồn để xác minh; lần triển khai supervised này không đánh giá hoặc chọn cấu hình/ngưỡng bằng test.
+> **Trạng thái trên `dev`:** đã hoàn thiện pipeline đặc trưng, split dùng chung, EDA trên train, hai mô hình anomaly (notebook 02), Dummy/Gradient Boosting (notebook 03), so sánh bốn mô hình và importance/phân tích lỗi (notebook 04). Bộ tích hợp ngày 10/11/2026 có **47/47 test đạt** và notebook 01–04 chạy lại thành công. Tập test đã được quan sát trong các thí nghiệm trước; lịch sử và lần đánh giá mới với model chính thức được ghi rõ trong notebook 04.
 
 ## Mục tiêu
 
@@ -74,7 +74,7 @@ Các mô hình dùng cùng bộ đặc trưng và tập kiểm thử. Tiền x�
 
 Quy ước **`human = 0`, `bot = 1`**. Các chỉ số gồm Precision, Recall, F1 cho lớp bot, Macro-F1, Average Precision (AP), ROC-AUC và Accuracy; kèm confusion matrix, đường Precision–Recall và thời gian chạy.
 
-Feature importance của Gradient Boosting và permutation importance sẽ được bổ sung trong notebook 04. Kết quả supervised trên validation đã có trong `reports/supervised_validation_metrics.csv`; không xem các chỉ số sau chọn cấu hình/ngưỡng trên cùng validation là ước lượng độc lập cho dữ liệu mới.
+Notebook 04 đã tính impurity importance trên train, permutation importance trên validation và phân tích lỗi trên test. Kết quả nằm trong `reports/feature_importance.csv`, `reports/error_analysis.csv` và các biểu đồ. `reports/metrics.csv` so sánh bốn mô hình trên test; `reports/comparison_validation_metrics.csv` đối chiếu validation. Không xem các chỉ số sau chọn cấu hình/ngưỡng trên cùng validation là ước lượng độc lập cho dữ liệu mới.
 
 ## Công nghệ dự kiến
 
@@ -101,6 +101,7 @@ Python, pandas, NumPy, scikit-learn, Matplotlib, Seaborn và Jupyter Notebook.
 │   ├── data.py                        # Đọc, kiểm tra dữ liệu, chia tập
 │   ├── features.py                    # Tạo đặc trưng hồ sơ
 │   ├── train.py                       # Các hàm huấn luyện dùng chung
+│   ├── comparison.py                  # Kiểm tra và đánh giá model đã lưu
 │   ├── supervised.py                  # Tái tạo tìm kiếm, model và báo cáo notebook 03
 │   └── evaluate.py                    # Các hàm tính chỉ số dùng chung
 ├── tests/                             # Kiểm thử dữ liệu và đặc trưng
@@ -114,9 +115,9 @@ Notebook là nơi thử nghiệm và trình bày kết quả; các hàm dùng ch
 
 **Phần hiện chạy được:** `python -m src.data` audit CSV; `load_profiles()` trả về `(profiles, quality)` đã chuẩn hóa và kiểm tra; `build_features(profiles)` tính bốn đặc trưng; `python -m src.features` chạy toàn bộ pipeline và lưu kết quả; `split_features(features)` trả về `(train, validation, test)`. Notebook 01 gọi các hàm dùng chung và giữ lại các cell thực hành trước đó của người học. Bốn hàm `train_isolation_forest()`, `train_one_class_svm()`, `train_dummy()` và `train_gradient_boosting()` trả về pipeline đã fit. `anomaly_scores()`, `predict_bot()` và `select_threshold()` phục vụ anomaly; `bot_probabilities()` trả xác suất bot sau khi tìm đúng cột `classes_ == 1`. `evaluate_predictions()` tính chỉ số chung, trả AP/ROC-AUC là None nếu truth chỉ có một lớp; Macro-F1 luôn tính cả hai nhãn 0/1.
 
-**Supervised (notebook 03, chỉ trên validation):** Dummy `most_frequent` dự đoán toàn human, Accuracy 0,6681, F1 bot 0 và ROC-AUC 0,5. Gradient Boosting được chọn theo AP từ lưới cố định 6 cấu hình: 100/200 cây × độ sâu 2/3/4, learning rate 0,1, min_samples_leaf=5, subsample=1, seed=42. Cấu hình chọn 200 cây, độ sâu 4 đạt AP **0,7876**, ROC-AUC **0,8615**. F1 bot ở ngưỡng 0,5 là **0,6953**; ngưỡng chọn theo F1 validation **0,369156** đạt Precision **0,6851**, Recall **0,7336**, F1 bot **0,7085**. Median imputer chỉ fit trên train, không refit trên train+validation. Xem [hướng dẫn bàn giao](reports/supervised_handoff.md) để tải model, áp dụng ngưỡng và đối chiếu provenance. Đây là kết quả validation mới có truy vết, không xác nhận con số 0,863 trong ghi chú cũ.
+**Supervised (notebook 03, chỉ trên validation):** Dummy `most_frequent` dự đoán toàn human, Accuracy 0,6681, F1 bot 0 và ROC-AUC 0,5. Gradient Boosting được chọn theo AP từ lưới cố định 6 cấu hình: 100/200 cây × độ sâu 2/3/4, learning rate 0,1, min_samples_leaf=5, subsample=1, seed=42. Cấu hình chọn 200 cây, độ sâu 4 đạt AP **0,7876**, ROC-AUC **0,8615**. F1 bot ở ngưỡng 0,5 là **0,6953**; ngưỡng chọn theo F1 validation **0,369156** đạt Precision **0,6851**, Recall **0,7336**, F1 bot **0,7085**. Median imputer chỉ fit trên train, không refit trên train+validation. Xem [hướng dẫn bàn giao](reports/supervised_handoff.md) để tải model, áp dụng ngưỡng và đối chiếu provenance. Con số test 0,863 trong ghi chú cũ thuộc model tạm 300 cây/max_depth=5, giữ trong `reports/history/2026-11-09_interim_metrics.csv`; model chính thức hiện dùng cấu hình 200 cây/max_depth=4.
 
-**Phát hiện bất thường (notebook 02, chỉ trên validation):** Isolation Forest đạt ROC-AUC 0,378 và One-Class SVM (`nu=0.05`, `gamma=0.05`) đạt 0,565, so với 0,5 của xếp hạng ngẫu nhiên. Ngưỡng chọn trên validation chỉ cho F1 lớp bot khoảng 0,50, ngang mốc gắn nhãn tất cả là bot (0,498). Bot trong dữ liệu có hồ sơ điển hình, còn điểm ngoại lai chủ yếu là tài khoản người thật có nhiều follower. Notebook lưu model vào `models/*.joblib` (kèm cấu hình, đặc trưng và ngưỡng), bảng `reports/anomaly_validation_metrics.csv` và biểu đồ phân phối điểm trong `reports/figures/`. Kết quả test sẽ được báo cáo ở notebook 04.
+**Phát hiện bất thường (notebook 02, chỉ trên validation):** Isolation Forest đạt ROC-AUC 0,378 và One-Class SVM (`nu=0.05`, `gamma=0.05`) đạt 0,565, so với 0,5 của xếp hạng ngẫu nhiên. Ngưỡng chọn trên validation chỉ cho F1 lớp bot khoảng 0,50, ngang mốc gắn nhãn tất cả là bot (0,498). Bot trong dữ liệu có hồ sơ điển hình, còn điểm ngoại lai chủ yếu là tài khoản người thật có nhiều follower. Notebook lưu model vào `models/*.joblib` (kèm cấu hình, đặc trưng và ngưỡng), bảng `reports/anomaly_validation_metrics.csv` và biểu đồ phân phối điểm trong `reports/figures/`. Kết quả test được báo cáo ở notebook 04; không đổi cấu hình/ngưỡng sau khi xem test.
 
 **Chia tập:** nguồn không có split chính thức, nên tài khoản được chia 60/20/20, stratify theo nhãn, seed `RANDOM_STATE`. Mỗi `user_id` thuộc đúng một tập. Lần chạy đầu lưu `user_id → split` vào `dataset/processed/split.csv`; các lần sau dùng lại file này để mọi notebook có cùng tập kiểm thử. Nếu file không khớp đúng tập `user_id` hiện có, hàm báo lỗi chứ không tự tạo split mới. Trên CSV hiện tại: train 22.462, validation 7.488, test 7.488 dòng; tỷ lệ bot mỗi tập là 33,19%.
 
@@ -242,7 +243,7 @@ python -m unittest discover -s tests -v
 
 Bộ kiểm thử dùng `unittest` có sẵn: ID dài/giữ số 0 đầu, nhãn và ID lỗi, index nguồn, following/tuổi bằng 0, tuổi âm, dữ liệu số thiếu/không hợp lệ/vô cực, bio Unicode/null/xuống dòng, làm tròn, bảo toàn CSV nguồn và chạy lại nhất quán.
 
-Bộ kiểm thử sau triển khai supervised: **36/36 test đạt**. Phần bổ sung kiểm tra fit median chỉ trên train, Dummy đúng lớp phổ biến nhất, xác suất đúng lớp bot kể cả khi thứ tự lớp đảo hoặc thiếu lớp, tính tái lập theo seed, pipeline giữ schema khi lưu/tải và lựa chọn cấu hình/ngưỡng không truy cập test.
+**47/47 test đạt** sau tích hợp. Kiểm thử bao gồm train-only imputation, Dummy đúng lớp phổ biến nhất, xác suất đúng lớp bot kể cả khi thứ tự lớp đảo/thiếu lớp, seed và lưu/tải pipeline. Các ca bổ sung kiểm tra không fit lại khi đánh giá, giữ quy tắc ngưỡng mặc định, phát hiện model sai nguồn/split/schema/phiên bản và AP validation không khớp.
 
 Tái tạo Dummy/Gradient Boosting, bảng validation và metadata từ thư mục gốc:
 
@@ -258,7 +259,7 @@ Với Bash sau khi kích hoạt `.venv`: `python -m src.supervised`. Lệnh dùn
 
 1. Mở thư mục gốc dự án bằng **File → Open Folder**.
 2. Mở Command Palette (`Ctrl + Shift + P` trên Windows/Linux hoặc `Cmd + Shift + P` trên macOS), chọn **Python: Select Interpreter** rồi chọn Python của dự án: `.venv\Scripts\python.exe` trên Windows hoặc `.venv/bin/python` trên Linux/macOS/WSL.
-3. Mở [`notebooks/01_data_exploration.ipynb`](notebooks/01_data_exploration.ipynb) để kiểm tra dữ liệu và EDA trên train. Notebook 02 huấn luyện Isolation Forest và One-Class SVM; notebook 03 huấn luyện Dummy/Gradient Boosting, chọn cấu hình/ngưỡng và kiểm tra model sau lưu/tải. Notebook 04 vẫn là khung cho phần so sánh cuối.
+3. Chạy **Run All** lần lượt notebook **01 → 02 → 03 → 04**. Notebook 01 kiểm tra dữ liệu và EDA; 02 tạo model anomaly; 03 tạo model supervised; 04 chỉ tải model, kiểm tra nguồn/split/AP validation rồi mới đánh giá test và tính importance. Không đổi cấu hình/ngưỡng dựa trên kết quả test.
 4. Chọn **Select Kernel → Python Environments → .venv**, sau đó chạy từng cell.
 
 **Hoặc dùng JupyterLab trên trình duyệt:**
@@ -279,7 +280,7 @@ Mở địa chỉ local được in trong terminal nếu trình duyệt chưa t�
 
 Trong notebook 01, chạy cell thiết lập `project_root`, sau đó phần **Pipeline đặc trưng dùng chung**. Phần này gọi các hàm trong `src/` để đọc/kiểm tra dữ liệu, tính đặc trưng, lưu đầu ra và hiển thị thống kê chất lượng. Các cell thực hành trước đó được giữ nguyên để tham khảo; cách đọc chính thức là `load_profiles()` để bảo toàn văn bản bio. Có thể chạy lại pipeline từ notebook mà không chép công thức hoặc logic làm sạch vào cell.
 
-Notebook 01–03 đã chạy lại được bằng môi trường dự án. Notebook 04 chạy các cell khung nhưng chưa thực hiện so sánh bốn mô hình, importance hoặc đánh giá cuối. Việc review của thành viên, xác minh lịch sử sử dụng test và tích hợp `main` còn chờ phần phối hợp với Sơn. `docs/` tiếp tục được bỏ qua bởi Git; hướng dẫn bàn giao có thể chia sẻ nằm trong `reports/supervised_handoff.md`.
+Notebook 01–04 đã chạy lại thành công trong lần tích hợp 10/11/2026; dữ liệu nguồn và file split được giữ nguyên. `src/comparison.py` kiểm tra bàn giao và đánh giá các model cố định, không huấn luyện lại. `reports/evaluation_run.json` liên kết kết quả với `run_id`, SHA-256 model, nguồn, split và mã nguồn; notebook 04 tạo lại nhận xét từ số liệu hiện tại. Các kết quả model tạm trước đó được giữ trong `reports/history/`. Việc review của thành viên và tích hợp `main` vẫn là bước riêng; `docs/` tiếp tục được Git bỏ qua.
 
 ### 6. Đồng bộ môi trường giữa các thành viên
 

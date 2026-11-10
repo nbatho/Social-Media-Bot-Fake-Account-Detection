@@ -27,7 +27,7 @@ Chọn cấu hình theo AP validation từ lưới **100/200 cây × độ sâu 
 
 Median imputer chỉ fit trên train; cây không cần scaler/log1p. Cột hoàn toàn thiếu vẫn được giữ, điền 0. Không refit trên train+validation sau chọn ngưỡng. Dummy giữ `most_frequent`, không chọn ngưỡng bằng nhãn validation. Confusion matrix theo `[[TN, FP], [FN, TP]]`: Dummy `[[5003, 0], [2485, 0]]`; Gradient Boosting ngưỡng F1 `[[4165, 838], [662, 1823]]`.
 
-Các số validation sau tìm kiếm có thể lạc quan, không phải kết quả đánh giá cuối. Ghi chú EDA cũ nói test đã được dùng và nhắc AUC 0,863 nhưng chưa có thí nghiệm nguồn để xác minh. Đã sửa lời khẳng định trong notebook 01 thành ghi chú chưa xác minh. Lần chạy supervised này không dự đoán test; không thể từ đó kết luận test chưa từng được dùng trước đây. Cần Sơn đối chiếu lịch sử trước đánh giá cuối; không dùng test để điều chỉnh tiếp.
+Các số validation sau tìm kiếm có thể lạc quan. Notebook 04 hiện giữ lịch sử test đã được quan sát theo nhánh importance-analysis (commit `951a657`) và ghi lần đánh giá mới ngày 10/11/2026 với model chính thức. Kết quả tạm AUC 0,863 thuộc cấu hình 300 cây/max_depth=5, được giữ trong `reports/history/2026-11-09_interim_metrics.csv`. Lần chạy supervised này chỉ chọn cấu hình/ngưỡng trên validation; không dùng test để điều chỉnh tiếp.
 
 ## Tệp và giao diện model
 
@@ -57,10 +57,12 @@ metrics = evaluate_predictions(evaluation_rows["label"], predictions, scores)
 
 Đối chiếu hash nguồn/split với `bundle["provenance"]`, `run_id` giữa model và báo cáo trước tích hợp. Với Dummy, dùng `bundle["model"].predict(X)` để giữ đúng baseline. Score luôn là xác suất của lớp `classes_ == 1`, kể cả trường hợp thứ tự cột thay đổi hoặc Dummy không có lớp bot.
 
-## Kiểm tra và việc phối hợp còn lại
+## Kiểm tra tích hợp
 
-**41/41 test đạt**: gồm phần dữ liệu/split/anomaly hiện có và 18 test cho supervised/đánh giá cho supervised/đánh giá. Đã chạy notebook 01–04 bằng Python của `.venv`; notebook 03 đã lưu output và xác minh từng score/dự đoán sau tải model. Notebook 04 chỉ có cell khung nên lần chạy đó chưa xác nhận quy trình so sánh cuối.
+**47/47 test đạt** ngày 10/11/2026. Notebook 01–04 đã chạy lại lần lượt từ code tích hợp; model 02/03 được tạo mới, notebook 04 tải lại và đánh giá mà không fit lại. Dữ liệu nguồn và split dùng chung không đổi. `evaluate_predictions()` trả AP/ROC-AUC là `None` khi truth chỉ có một lớp; Macro-F1 luôn tính cả hai nhãn. Hàm trả cả `tn/fp/fn/tp`, `confusion_matrix` và `flagged_share` cho các notebook dùng chung.
 
-Review phần đánh giá hiện có: notebook 02 dùng score `-decision_function` đúng chiều và tách ngưỡng mặc định/validation; notebook 04 còn TODO. Hàm đánh giá cục bộ trong notebook 02 chưa tái sử dụng hàm chung và chưa báo Accuracy; cần Sơn đổi sang `evaluate_predictions()` khi hoàn thiện đánh giá. Hàm chung đã kiểm thử ma trận nhầm lẫn, hướng score, chia cho 0, truth một lớp và đầu vào sai. AP/ROC-AUC trả None cho truth một lớp; Macro-F1 luôn tính cả hai nhãn.
+`src/comparison.py` dùng `bot_probabilities()`, bỏ qua khóa `validation_f1` không tồn tại của Dummy và giữ `model.predict()` ở ngưỡng mặc định. Trước khi đánh giá test, nó kiểm tra schema, phiên bản scikit-learn, hash nguồn/split, run_id và đối chiếu AP validation với bundle. `reports/evaluation_run.json` ghi SHA-256 từng model, cấu hình/ngưỡng và hash bảng metrics. Các ca hồi quy bao gồm model sai nguồn/split, thiếu file, sai schema/phiên bản và khác AP validation.
 
-Chưa có review chéo thực tế của thành viên, xác nhận Sơn đã tái tạo, phần importance/so sánh bốn mô hình hoặc đánh giá test. Branch `main` chưa nhận phần supervised; không coi tiêu chí nghiệm thu phối hợp này là đã hoàn thành chỉ vì code/notebook chạy được.
+Tái tạo đầy đủ: Run All notebook 01 → 02 → 03 → 04 sau khi tạo môi trường theo README. Mỗi lần chạy ghi đè bộ model/báo cáo hiện tại với run_id mới; giữ cả model và báo cáo nếu cần lưu một thí nghiệm. Model sinh ra vẫn được Git bỏ qua. Các mốc lịch sử 29/10–09/11 được giữ theo ghi chép cũ, không coi là holdout chưa quan sát; notebook 04 ghi lại lần đánh giá mới với model chính thức.
+
+Các thay đổi đã được tích hợp và kiểm thử trên `dev`; chưa merge vào `main` và không thay thế xác nhận review chéo của thành viên.
