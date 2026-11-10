@@ -2,7 +2,7 @@
 
 Dự án học máy phát hiện tài khoản Twitter có hành vi giống bot thông qua các đặc trưng hồ sơ. Dự án sử dụng Isolation Forest và One-Class SVM để phát hiện bất thường, đối chiếu với Gradient Boosting và phân tích các đặc trưng ảnh hưởng đến kết quả phân loại.
 
-> **Trạng thái:** đã triển khai pipeline đọc, kiểm tra và trích xuất bốn đặc trưng từ CSV hồ sơ đầy đủ. Chưa triển khai chia tập hoặc huấn luyện mô hình; chưa có kết quả thực nghiệm mô hình.
+> **Trạng thái trên `dev`:** đã tích hợp pipeline đặc trưng, split train/validation/test dùng chung, EDA chỉ trên train (notebook 01), Isolation Forest và One-Class SVM trên validation (notebook 02), cùng hàm đánh giá có kiểm thử. Dummy/Gradient Boosting và notebook 03–04 chưa hoàn tất tích hợp. Kết quả test ở nhánh thí nghiệm `feature/importance-analysis` chưa được đưa vào `dev`; tập test đã được quan sát ở các thí nghiệm trước, như ghi chú EDA đã nêu.
 
 ## Mục tiêu
 
@@ -134,7 +134,11 @@ Python, pandas, NumPy, scikit-learn, Matplotlib, Seaborn và Jupyter Notebook.
 
 Notebook là nơi thử nghiệm và trình bày kết quả; các hàm dùng chung nằm trong `src/`. Đường dẫn trong `src/config.py` được tính từ vị trí dự án, không gắn với máy của một thành viên.
 
-**Phần hiện chạy được:** `python -m src.data` audit CSV; `load_profiles()` trả về `(profiles, quality)` đã chuẩn hóa và kiểm tra; `build_features(profiles)` tính bốn đặc trưng; `python -m src.features` chạy toàn bộ pipeline và lưu kết quả. Notebook 01 gọi các hàm dùng chung và giữ lại các cell thực hành trước đó của người học. Chia tập, huấn luyện và đánh giá vẫn là khung TODO.
+**Phần hiện chạy được:** `python -m src.data` audit CSV; `load_profiles()` trả về `(profiles, quality)` đã chuẩn hóa và kiểm tra; `build_features(profiles)` tính bốn đặc trưng; `python -m src.features` chạy toàn bộ pipeline và lưu kết quả; `split_features(features)` trả về `(train, validation, test)`. Notebook 01 gọi các hàm dùng chung và giữ lại các cell thực hành trước đó của người học. `train_isolation_forest()` và `train_one_class_svm()` trả về pipeline đã fit; `anomaly_scores()`, `predict_bot()` và `select_threshold()` dùng chung cho điểm, dự đoán và chọn ngưỡng. `evaluate_predictions()` đã tính các chỉ số dùng chung và được notebook 02 sử dụng. Dummy và Gradient Boosting vẫn là khung TODO trên `dev`.
+
+**Phát hiện bất thường (notebook 02, chỉ trên validation):** Isolation Forest đạt ROC-AUC 0,378 và One-Class SVM (`nu=0.05`, `gamma=0.05`) đạt 0,565, so với 0,5 của xếp hạng ngẫu nhiên. Ngưỡng chọn trên validation chỉ cho F1 lớp bot khoảng 0,50, ngang mốc gắn nhãn tất cả là bot (0,498). Bot trong dữ liệu có hồ sơ điển hình, còn điểm ngoại lai chủ yếu là tài khoản người thật có nhiều follower. Notebook lưu model vào `models/*.joblib` (kèm cấu hình, đặc trưng và ngưỡng), bảng `reports/anomaly_validation_metrics.csv` và biểu đồ phân phối điểm trong `reports/figures/`. Kết quả test sẽ được báo cáo ở notebook 04.
+
+**Chia tập:** nguồn không có split chính thức, nên tài khoản được chia 60/20/20, stratify theo nhãn, seed `RANDOM_STATE`. Mỗi `user_id` thuộc đúng một tập. Lần chạy đầu lưu `user_id → split` vào `dataset/processed/split.csv`; các lần sau dùng lại file này để mọi notebook có cùng tập kiểm thử. Nếu file không khớp đúng tập `user_id` hiện có, hàm báo lỗi chứ không tự tạo split mới. Trên CSV hiện tại: train 22.462, validation 7.488, test 7.488 dòng; tỷ lệ bot mỗi tập là 33,19%.
 
 `dataset/processed/` và `models/` được giữ trong Git bằng `.gitkeep`; dữ liệu và mô hình sinh ra bên trong được bỏ qua. Biểu đồ và bảng kết quả được lưu trong `reports/` để nhóm chọn đưa vào báo cáo/repository.
 
@@ -264,7 +268,7 @@ Bộ kiểm thử dùng `unittest` có sẵn: ID dài/giữ số 0 đầu, nhãn
 
 1. Mở thư mục gốc dự án bằng **File → Open Folder**.
 2. Mở Command Palette (`Ctrl + Shift + P` trên Windows/Linux hoặc `Cmd + Shift + P` trên macOS), chọn **Python: Select Interpreter** rồi chọn Python của dự án: `.venv\Scripts\python.exe` trên Windows hoặc `.venv/bin/python` trên Linux/macOS/WSL.
-3. Mở [`notebooks/01_data_exploration.ipynb`](notebooks/01_data_exploration.ipynb) để kiểm tra dữ liệu và gọi pipeline đặc trưng. Notebook 02–04 dành cho giai đoạn sau khi triển khai các hàm tương ứng.
+3. Mở [`notebooks/01_data_exploration.ipynb`](notebooks/01_data_exploration.ipynb) để kiểm tra dữ liệu và gọi pipeline đặc trưng. Notebook 02 huấn luyện Isolation Forest và One-Class SVM; notebook 03–04 dành cho giai đoạn sau khi triển khai các hàm tương ứng.
 4. Chọn **Select Kernel → Python Environments → .venv**, sau đó chạy từng cell.
 
 **Hoặc dùng JupyterLab trên trình duyệt:**
@@ -285,7 +289,7 @@ Mở địa chỉ local được in trong terminal nếu trình duyệt chưa t�
 
 Trong notebook 01, chạy cell thiết lập `project_root`, sau đó phần **Pipeline đặc trưng dùng chung**. Phần này gọi các hàm trong `src/` để đọc/kiểm tra dữ liệu, tính đặc trưng, lưu đầu ra và hiển thị thống kê chất lượng. Các cell thực hành trước đó được giữ nguyên để tham khảo; cách đọc chính thức là `load_profiles()` để bảo toàn văn bản bio. Có thể chạy lại pipeline từ notebook mà không chép công thức hoặc logic làm sạch vào cell.
 
-**Notebook 02–04 và các hàm huấn luyện vẫn là khung.** Phần triển khai hiện tại chỉ xử lý dữ liệu và đặc trưng; chưa chia tập, vẽ EDA phục vụ chọn đặc trưng hoặc huấn luyện mô hình. `docs/` tiếp tục được bỏ qua bởi Git, không thay đổi ghi chú nội bộ.
+**Notebook 03–04 và Dummy/Gradient Boosting vẫn là khung trên `dev`.** Notebook 01 đã có EDA chỉ trên train; notebook 02 dùng hai mô hình phát hiện bất thường và hàm đánh giá chung. Kiểm tra tích hợp ngày 10/11/2026: **28/28 test đạt**; notebook 01–02 chạy lại thành công, tái tạo đúng split dùng chung và các chỉ số anomaly validation đã commit. `docs/` tiếp tục được bỏ qua bởi Git, không thay đổi ghi chú nội bộ.
 
 ### 6. Đồng bộ môi trường giữa các thành viên
 
