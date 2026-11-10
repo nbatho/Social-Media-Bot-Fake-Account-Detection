@@ -15,7 +15,8 @@ def evaluate_predictions(y_true, y_pred, scores) -> dict:
     or recall count as 0; AP and ROC-AUC are None for single-class data.
     """
     y_true, y_pred, scores = np.asarray(y_true), np.asarray(y_pred), np.asarray(scores, dtype=float)
-    if not len(y_true) == len(y_pred) == len(scores) or len(y_true) == 0:
+    if (any(values.ndim != 1 for values in (y_true, y_pred, scores))
+            or not len(y_true) == len(y_pred) == len(scores) or len(y_true) == 0):
         raise ValueError("y_true, y_pred and scores must be non-empty and the same length.")
     for name, values in (("y_true", y_true), ("y_pred", y_pred)):
         if not np.isin(values, (0, 1)).all():
@@ -34,4 +35,6 @@ def evaluate_predictions(y_true, y_pred, scores) -> dict:
         "roc_auc": None if single_class else float(roc_auc_score(y_true, scores)),
         "accuracy": float(accuracy_score(y_true, y_pred)),
         "tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp),
+        "confusion_matrix": [[int(tn), int(fp)], [int(fn), int(tp)]],
+        "flagged_share": float(np.mean(y_pred)),
     }
