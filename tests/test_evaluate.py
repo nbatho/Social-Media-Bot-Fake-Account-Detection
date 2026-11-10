@@ -63,5 +63,44 @@ class EvaluateTests(unittest.TestCase):
                 evaluate_predictions(y_true, y_pred, scores)
 
 
+
+import numpy as np
+
+class EvaluationTests(unittest.TestCase):
+    def test_known_confusion_matrix_and_metrics(self):
+        metrics = evaluate_predictions([0, 0, 0, 1, 1], [0, 0, 1, 0, 1], [0.1, 0.2, 0.8, 0.4, 0.9])
+        self.assertEqual(metrics["confusion_matrix"], [[2, 1], [1, 1]])
+        self.assertEqual(metrics["precision_bot"], 0.5)
+        self.assertEqual(metrics["recall_bot"], 0.5)
+        self.assertEqual(metrics["f1_bot"], 0.5)
+        self.assertAlmostEqual(metrics["macro_f1"], (2 / 3 + 0.5) / 2)
+        self.assertEqual(metrics["accuracy"], 0.6)
+        self.assertAlmostEqual(metrics["ap"], 5 / 6)
+        self.assertAlmostEqual(metrics["roc_auc"], 5 / 6)
+
+    def test_larger_scores_mean_bot(self):
+        y = [0, 0, 1, 1]
+        self.assertEqual(evaluate_predictions(y, y, [0.1, 0.2, 0.8, 0.9])["roc_auc"], 1)
+        self.assertEqual(evaluate_predictions(y, y, [0.9, 0.8, 0.2, 0.1])["roc_auc"], 0)
+
+    def test_single_class_has_none_rankings_fixed_matrix_and_macro_f1(self):
+        for label in (0, 1):
+            metrics = evaluate_predictions([label, label], [label, label], [0.1, 0.9])
+            self.assertIsNone(metrics["ap"])
+            self.assertIsNone(metrics["roc_auc"])
+            self.assertEqual(np.shape(metrics["confusion_matrix"]), (2, 2))
+            self.assertEqual(metrics["macro_f1"], 0.5)
+        metrics = evaluate_predictions([0, 1], [0, 0], [0, 0])
+        self.assertEqual(metrics["precision_bot"], 0)
+
+    def test_invalid_inputs_fail(self):
+        cases = [([], [], []), ([0, 1], [0], [0, 1]), ([0], [2], [0.2]),
+                 ([2], [0], [0.2]), ([0], [0], [np.inf]), ([0], [0], [np.nan]),
+                 ([[0]], [0], [0.2])]
+        for args in cases:
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                evaluate_predictions(*args)
+
+
 if __name__ == "__main__":
     unittest.main()

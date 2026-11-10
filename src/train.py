@@ -6,7 +6,8 @@ Use identical feature columns and the shared data split across all models.
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import IsolationForest
+from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import GradientBoostingClassifier, IsolationForest
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import precision_recall_curve
 from sklearn.pipeline import Pipeline
@@ -22,7 +23,7 @@ def feature_matrix(X) -> pd.DataFrame:
         columns = list(X.columns) if isinstance(X, pd.DataFrame) else type(X).__name__
         raise ValueError(f"Expected DataFrame columns {list(FEATURE_COLUMNS)}, got {columns}.")
     # Nullable Float64 missing values become NaN for the imputer.
-    return X.astype("float64")
+    return X.astype("Float64").astype("float64")
 
 
 def train_isolation_forest(
@@ -89,11 +90,61 @@ def select_threshold(y_val, scores) -> dict:
     }
 
 
-def train_dummy(X_train, y_train):
-    """TODO: fit a most-frequent-class baseline on the shared training data."""
-    raise NotImplementedError("Chưa triển khai Dummy baseline.")
+def _supervised_inputs(X_train, y_train):
+    X = feature_matrix(X_train)
+    if isinstance(y_train, pd.Series) and not X.index.equals(y_train.index):
+        raise ValueError("Training features and labels must have identical indices.")
+    y = np.asarray(y_train)
+    if y.ndim != 1 or len(y) != len(X) or not len(y) or not np.isin(y, [0, 1]).all():
+        raise ValueError("Training labels must be a nonempty aligned vector of human=0/bot=1.")
+    return X, y.astype("int64")
 
 
-def train_gradient_boosting(X_train, y_train, *, random_state=RANDOM_STATE):
-    """TODO: fit a Gradient Boosting classification pipeline."""
-    raise NotImplementedError("Chưa triển khai Gradient Boosting.")
+def _classifier_pipeline(classifier):
+    # Keep schema validation inside the persisted pipeline, including at inference.
+    return Pipeline([
+        ("features", FunctionTransformer(feature_matrix, validate=False,
+                                         feature_names_out="one-to-one")),
+        ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
+        ("classifier", classifier),
+    ])
+
+
+def train_dummy(X_train, y_train) -> Pipeline:
+    """Fit the most-frequent-class baseline; preprocessing learns only from train."""
+    X, y = _supervised_inputs(X_train, y_train)
+    return _classifier_pipeline(DummyClassifier(strategy="most_frequent")).fit(X, y)
+
+
+def train_gradient_boosting(
+    X_train, y_train, *, random_state=RANDOM_STATE, n_estimators=100,
+    learning_rate=0.1, max_depth=3, min_samples_leaf=1, subsample=1.0,
+) -> Pipeline:
+    """Fit median imputation + Gradient Boosting on train only.
+
+    Tree thresholds do not require scaling or log transforms. Hyperparameters
+    are explicit so notebooks can compare a fixed grid using validation only.
+    """
+    X, y = _supervised_inputs(X_train, y_train)
+    classifier = GradientBoostingClassifier(
+        random_state=random_state, n_estimators=n_estimators,
+        learning_rate=learning_rate, max_depth=max_depth,
+        min_samples_leaf=min_samples_leaf, subsample=subsample,
+    )
+    return _classifier_pipeline(classifier).fit(X, y)
+
+
+def bot_probabilities(model: Pipeline, X) -> np.ndarray:
+    """Return P(bot=1), locating class 1 rather than assuming a column order.
+
+    A Dummy fitted on humans alone has no bot column and yields all zeros.
+    """
+    X = feature_matrix(X)
+    classes = np.asarray(model.classes_)
+    if classes.ndim != 1 or not len(classes) or not np.isin(classes, [0, 1]).all():
+        raise ValueError("Classifier classes_ must use human=0/bot=1.")
+    probabilities = model.predict_proba(X)
+    bot_column = np.flatnonzero(classes == 1)
+    if not len(bot_column):
+        return np.zeros(len(X), dtype=float)
+    return probabilities[:, bot_column[0]]
