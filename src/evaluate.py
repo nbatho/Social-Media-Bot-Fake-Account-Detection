@@ -1,40 +1,51 @@
-"""Shared evaluation contract: human=0, bot=1, larger scores indicate bots."""
+"""Tính chỉ số, so sánh các mô hình và feature importance. Quy ước: human=0, bot=1."""
 
-import numpy as np
+import pandas as pd
+from sklearn.inspection import permutation_importance
 from sklearn.metrics import (
     accuracy_score, average_precision_score, confusion_matrix, f1_score,
     precision_score, recall_score, roc_auc_score,
 )
 
+from .config import FEATURE_COLUMNS, RANDOM_STATE
+from .models import bot_scores, default_predictions
+
 
 def evaluate_predictions(y_true, y_pred, scores) -> dict:
-    """Calculate bot precision/recall/F1, macro-F1, AP, ROC-AUC, accuracy and counts.
-
-    Predictions use labels 0/1. Scores must be continuous: negative detector
-    decision_function or classifier probability for class 1. Undefined precision
-    or recall count as 0; AP and ROC-AUC are None for single-class data.
-    """
-    y_true, y_pred, scores = np.asarray(y_true), np.asarray(y_pred), np.asarray(scores, dtype=float)
-    if (any(values.ndim != 1 for values in (y_true, y_pred, scores))
-            or not len(y_true) == len(y_pred) == len(scores) or len(y_true) == 0):
-        raise ValueError("y_true, y_pred and scores must be non-empty and the same length.")
-    for name, values in (("y_true", y_true), ("y_pred", y_pred)):
-        if not np.isin(values, (0, 1)).all():
-            raise ValueError(f"{name} must contain only human=0 and bot=1.")
-    if not np.isfinite(scores).all():
-        raise ValueError("scores must be finite.")
-
+    """Precision/Recall/F1 lớp bot, Macro-F1, AP, ROC-AUC, Accuracy và confusion matrix."""
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
-    single_class = len(np.unique(y_true)) < 2
     return {
-        "precision_bot": float(precision_score(y_true, y_pred, zero_division=0)),
-        "recall_bot": float(recall_score(y_true, y_pred, zero_division=0)),
-        "f1_bot": float(f1_score(y_true, y_pred, zero_division=0)),
-        "macro_f1": float(f1_score(y_true, y_pred, average="macro", labels=[0, 1], zero_division=0)),
-        "ap": None if single_class else float(average_precision_score(y_true, scores)),
-        "roc_auc": None if single_class else float(roc_auc_score(y_true, scores)),
-        "accuracy": float(accuracy_score(y_true, y_pred)),
+        "precision_bot": precision_score(y_true, y_pred, zero_division=0),
+        "recall_bot": recall_score(y_true, y_pred, zero_division=0),
+        "f1_bot": f1_score(y_true, y_pred, zero_division=0),
+        "macro_f1": f1_score(y_true, y_pred, average="macro", labels=[0, 1], zero_division=0),
+        "ap": average_precision_score(y_true, scores),
+        "roc_auc": roc_auc_score(y_true, scores),
+        "accuracy": accuracy_score(y_true, y_pred),
         "tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp),
-        "confusion_matrix": [[int(tn), int(fp)], [int(fn), int(tp)]],
-        "flagged_share": float(np.mean(y_pred)),
     }
+
+
+def compare_models(bundles: dict, frame: pd.DataFrame, split_name: str) -> pd.DataFrame:
+    """Mỗi mô hình 2 dòng: ngưỡng mặc định và ngưỡng đã chọn trên validation. Không fit lại."""
+    y, rows = frame["label"], []
+    for name, bundle in bundles.items():
+        model, scores = bundle["model"], bot_scores(bundle["model"], frame)
+        for setting, pred in (("default", default_predictions(model, frame)),
+                              ("validation_f1", (scores >= bundle["threshold"]).astype(int))):
+            rows.append({"split": split_name, "model": name, "setting": setting,
+                         "threshold": None if setting == "default" else bundle["threshold"],
+                         **evaluate_predictions(y, pred, scores)})
+    return pd.DataFrame(rows)
+
+
+def feature_importance(model, validation: pd.DataFrame) -> pd.DataFrame:
+    """Impurity importance (học từ train) + permutation importance (AP giảm trên validation)."""
+    perm = permutation_importance(model, validation[FEATURE_COLUMNS], validation["label"],
+                                  scoring="average_precision", n_repeats=10, random_state=RANDOM_STATE)
+    return pd.DataFrame({
+        "feature": FEATURE_COLUMNS,
+        "impurity_importance": model[-1].feature_importances_,
+        "permutation_ap_drop": perm.importances_mean,
+        "permutation_ap_drop_std": perm.importances_std,
+    }).sort_values("permutation_ap_drop", ascending=False, ignore_index=True)
