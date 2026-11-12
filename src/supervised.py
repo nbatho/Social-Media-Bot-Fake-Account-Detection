@@ -16,7 +16,6 @@ import joblib
 import numpy as np
 import pandas as pd
 import sklearn
-from sklearn.dummy import DummyClassifier
 
 from .config import (
     FEATURE_COLUMNS, MODELS_DIR, PROJECT_ROOT, RANDOM_STATE, RAW_LABELS_PATH,
@@ -25,7 +24,7 @@ from .config import (
 from .data import load_profiles, split_features
 from .evaluate import evaluate_predictions
 from .features import build_features
-from .train import bot_probabilities, select_threshold, train_dummy, train_gradient_boosting
+from .train import bot_probabilities, select_threshold, train_gradient_boosting
 
 
 # Fixed before looking at validation. First candidate wins exact AP ties.
@@ -46,7 +45,6 @@ def save_supervised_model(
 ) -> dict:
     """Persist the complete inference pipeline plus the notebook-04 handoff."""
     classifier = model.named_steps["classifier"]
-    is_dummy = isinstance(classifier, DummyClassifier)
     bundle = {
         "schema_version": 1,
         "model": model,
@@ -66,10 +64,8 @@ def save_supervised_model(
                      "numpy": np.__version__, "pandas": pd.__version__, "joblib": joblib.__version__},
         "run_id": run_id,
         "provenance": provenance,
-        "selection": {"config": "fixed most_frequent baseline" if is_dummy else
-                                "maximum validation AP; first candidate on ties",
-                      "threshold": "fixed default; no threshold tuning" if is_dummy else
-                                   "maximum validation bot F1; lowest cut on ties",
+        "selection": {"config": "maximum validation AP; first candidate on ties",
+                      "threshold": "maximum validation bot F1; lowest cut on ties",
                       "refit_on_validation": False, "test_used": False},
     }
     path = Path(path)
@@ -83,7 +79,7 @@ def _report_metrics(metrics):
 
 
 def run_supervised(*, models_dir=MODELS_DIR, reports_dir=REPORTS_DIR) -> dict:
-    """Train both baselines, save models, search results, metrics and provenance."""
+    """Select Gradient Boosting on validation and save its model and reports."""
     started = perf_counter()
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:8]
     profiles, _ = load_profiles()
@@ -103,10 +99,6 @@ def run_supervised(*, models_dir=MODELS_DIR, reports_dir=REPORTS_DIR) -> dict:
                         "This run does not score test or use test for selection.",
     }
     models, fit_seconds = {}, {}
-    start = perf_counter()
-    models["dummy"] = train_dummy(X_train, y_train)
-    fit_seconds["dummy"] = perf_counter() - start
-
     search_rows, best_ap = [], -np.inf
     for candidate_id, config in enumerate(GRADIENT_BOOSTING_CANDIDATES):
         start = perf_counter()
@@ -134,10 +126,8 @@ def run_supervised(*, models_dir=MODELS_DIR, reports_dir=REPORTS_DIR) -> dict:
         score_seconds = perf_counter() - start
         default = model.predict(X_val)
         thresholds = {"default": 0.5}
-        threshold = 0.5
-        if name == "gradient_boosting":
-            threshold = select_threshold(y_val, scores)["threshold"]
-            thresholds["validation_f1"] = threshold
+        threshold = select_threshold(y_val, scores)["threshold"]
+        thresholds["validation_f1"] = threshold
         model_rows = []
         for policy, cut in thresholds.items():
             predictions = default if policy == "default" else (scores >= cut).astype(int)
@@ -151,7 +141,7 @@ def run_supervised(*, models_dir=MODELS_DIR, reports_dir=REPORTS_DIR) -> dict:
                 "split_sha256": provenance["split_sha256"],
             })
         rows.extend(model_rows)
-        selected_predictions = default if name == "dummy" else (scores >= threshold).astype(int)
+        selected_predictions = (scores >= threshold).astype(int)
         prediction_frames.append(pd.DataFrame({
             "run_id": run_id, "model": name, "user_id": validation["user_id"].to_numpy(),
             "label": y_val, "bot_score": scores, "prediction_default": default,

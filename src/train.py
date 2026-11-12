@@ -6,7 +6,6 @@ Use identical feature columns and the shared data split across all models.
 
 import numpy as np
 import pandas as pd
-from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import GradientBoostingClassifier, IsolationForest
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import precision_recall_curve
@@ -110,12 +109,6 @@ def _classifier_pipeline(classifier):
     ])
 
 
-def train_dummy(X_train, y_train) -> Pipeline:
-    """Fit the most-frequent-class baseline; preprocessing learns only from train."""
-    X, y = _supervised_inputs(X_train, y_train)
-    return _classifier_pipeline(DummyClassifier(strategy="most_frequent")).fit(X, y)
-
-
 def train_gradient_boosting(
     X_train, y_train, *, random_state=RANDOM_STATE, n_estimators=100,
     learning_rate=0.1, max_depth=3, min_samples_leaf=1, subsample=1.0,
@@ -137,7 +130,7 @@ def train_gradient_boosting(
 def bot_probabilities(model: Pipeline, X) -> np.ndarray:
     """Return P(bot=1), locating class 1 rather than assuming a column order.
 
-    A Dummy fitted on humans alone has no bot column and yields all zeros.
+    A classifier without a bot class yields all zeros.
     """
     X = feature_matrix(X)
     classes = np.asarray(model.classes_)

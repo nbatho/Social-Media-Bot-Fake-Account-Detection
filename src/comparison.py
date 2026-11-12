@@ -17,7 +17,7 @@ from .train import anomaly_scores, bot_probabilities, feature_matrix, predict_bo
 
 
 DETECTORS = ("isolation_forest", "one_class_svm")
-MODEL_NAMES = ("dummy", *DETECTORS, "gradient_boosting")
+MODEL_NAMES = (*DETECTORS, "gradient_boosting")
 
 
 def file_sha256(path):
@@ -56,7 +56,7 @@ def model_predictions(name, bundle, X, threshold, scores):
     if name in DETECTORS:
         return predict_bot(bundle["model"], X, threshold)
     if threshold is None:
-        # Preserve the classifier's tie rule and Dummy's most-frequent baseline.
+        # Preserve the classifier's own tie rule at its default threshold.
         return bundle["model"].predict(feature_matrix(X))
     return (scores >= threshold).astype("int64")
 
@@ -74,7 +74,7 @@ def evaluate_models(bundles, X, y, split_name):
         seconds = perf_counter() - start
         cuts = {"default": None}
         selected_cut = bundle["thresholds"].get("validation_f1")
-        if name != "dummy" and selected_cut is not None:
+        if selected_cut is not None:
             if not np.isfinite(selected_cut):
                 raise ValueError(f"{name}: validation threshold must be finite.")
             cuts["validation_f1"] = selected_cut

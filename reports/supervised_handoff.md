@@ -1,4 +1,4 @@
-# Bàn giao Dummy và Gradient Boosting
+# Bàn giao Gradient Boosting
 
 Phần supervised được triển khai trên `feature/gradient-boosting`, từ nền tích hợp anomaly `53ec200` và EDA train `9c0821c` (merge nền `c9c58cd`). Dùng bốn `FEATURE_COLUMNS`, human=0/bot=1 và split chung 60/20/20, seed 42. Không dùng `user_id` hoặc `label` làm đầu vào dự đoán.
 
@@ -19,19 +19,18 @@ Mỗi lần chạy ghi đè các model/báo cáo với `run_id` mới. Muốn gi
 
 | Model / ngưỡng | Precision bot | Recall bot | F1 bot | Macro-F1 | AP | ROC-AUC | Accuracy |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Dummy most_frequent | 0,0000 | 0,0000 | 0,0000 | 0,4005 | 0,3319 | 0,5000 | 0,6681 |
 | Gradient Boosting / 0,5 | 0,7766 | 0,6294 | 0,6953 | 0,7822 | 0,7876 | 0,8615 | 0,8169 |
 | Gradient Boosting / F1 validation | 0,6851 | 0,7336 | 0,7085 | 0,7780 | 0,7876 | 0,8615 | 0,7997 |
 
 Chọn cấu hình theo AP validation từ lưới **100/200 cây × độ sâu 2/3/4**, learning rate=0,1, min_samples_leaf=5, subsample=1, seed=42. AP bằng nhau giữ cấu hình đầu tiên trong lưới. Cấu hình chọn: **200 cây, max_depth=4**. Chọn ngưỡng F1 bot trên validation, giữ ngưỡng thấp nhất khi bằng nhau: **0,36915560905621475**. Dùng `score >= threshold`.
 
-Median imputer chỉ fit trên train; cây không cần scaler/log1p. Cột hoàn toàn thiếu vẫn được giữ, điền 0. Không refit trên train+validation sau chọn ngưỡng. Dummy giữ `most_frequent`, không chọn ngưỡng bằng nhãn validation. Confusion matrix theo `[[TN, FP], [FN, TP]]`: Dummy `[[5003, 0], [2485, 0]]`; Gradient Boosting ngưỡng F1 `[[4165, 838], [662, 1823]]`.
+Median imputer chỉ fit trên train; cây không cần scaler/log1p. Cột hoàn toàn thiếu vẫn được giữ, điền 0. Không refit trên train+validation sau chọn ngưỡng. Confusion matrix theo `[[TN, FP], [FN, TP]]`: Gradient Boosting ngưỡng F1 `[[4165, 838], [662, 1823]]`.
 
 Các số validation sau tìm kiếm có thể lạc quan. Notebook 04 hiện giữ lịch sử test đã được quan sát theo nhánh importance-analysis (commit `951a657`) và ghi lần đánh giá mới ngày 10/11/2026 với model chính thức. Kết quả tạm AUC 0,863 thuộc cấu hình 300 cây/max_depth=5, được giữ trong `reports/history/2026-11-09_interim_metrics.csv`. Lần chạy supervised này chỉ chọn cấu hình/ngưỡng trên validation; không dùng test để điều chỉnh tiếp.
 
 ## Tệp và giao diện model
 
-- `models/dummy.joblib`, `models/gradient_boosting.joblib`: dictionary chứa pipeline tại khóa `model`; nằm ngoài Git theo quy tắc hiện có.
+- `models/gradient_boosting.joblib`: dictionary chứa pipeline tại khóa `model`; nằm ngoài Git theo quy tắc hiện có.
 - `reports/supervised_validation_metrics.csv`: cả ngưỡng mặc định và ngưỡng F1 validation, chỉ số, confusion matrix, thời gian fit/score, `run_id`, split hash.
 - `reports/supervised_validation_search.csv`: toàn bộ sáu cấu hình và cấu hình được chọn.
 - `reports/supervised_validation_predictions.csv`: ID, nhãn thật, score, dự đoán mặc định/đã chọn, ngưỡng và `run_id`; chỉ validation.
@@ -55,14 +54,14 @@ predictions = (scores >= bundle["threshold"]).astype(np.int64)
 metrics = evaluate_predictions(evaluation_rows["label"], predictions, scores)
 ```
 
-Đối chiếu hash nguồn/split với `bundle["provenance"]`, `run_id` giữa model và báo cáo trước tích hợp. Với Dummy, dùng `bundle["model"].predict(X)` để giữ đúng baseline. Score luôn là xác suất của lớp `classes_ == 1`, kể cả trường hợp thứ tự cột thay đổi hoặc Dummy không có lớp bot.
+Đối chiếu hash nguồn/split với `bundle["provenance"]`, `run_id` giữa model và báo cáo trước tích hợp. Score luôn là xác suất của lớp `classes_ == 1`, kể cả trường hợp thứ tự cột thay đổi.
 
 ## Kiểm tra tích hợp
 
-**47/47 test đạt** ngày 10/11/2026. Notebook 01–04 đã chạy lại lần lượt từ code tích hợp; model 02/03 được tạo mới, notebook 04 tải lại và đánh giá mà không fit lại. Dữ liệu nguồn và split dùng chung không đổi. `evaluate_predictions()` trả AP/ROC-AUC là `None` khi truth chỉ có một lớp; Macro-F1 luôn tính cả hai nhãn. Hàm trả cả `tn/fp/fn/tp`, `confusion_matrix` và `flagged_share` cho các notebook dùng chung.
+Phạm vi hiện tại gồm Isolation Forest, One-Class SVM và Gradient Boosting. Notebook 04 tải lại model để đánh giá mà không fit lại. Dữ liệu nguồn và split dùng chung được giữ nguyên. `evaluate_predictions()` trả AP/ROC-AUC là `None` khi truth chỉ có một lớp; Macro-F1 luôn tính cả hai nhãn. Hàm trả cả `tn/fp/fn/tp`, `confusion_matrix` và `flagged_share` cho các notebook dùng chung.
 
-`src/comparison.py` dùng `bot_probabilities()`, bỏ qua khóa `validation_f1` không tồn tại của Dummy và giữ `model.predict()` ở ngưỡng mặc định. Trước khi đánh giá test, nó kiểm tra schema, phiên bản scikit-learn, hash nguồn/split, run_id và đối chiếu AP validation với bundle. `reports/evaluation_run.json` ghi SHA-256 từng model, cấu hình/ngưỡng và hash bảng metrics. Các ca hồi quy bao gồm model sai nguồn/split, thiếu file, sai schema/phiên bản và khác AP validation.
+`src/comparison.py` so sánh ba mô hình, dùng `bot_probabilities()` cho Gradient Boosting và giữ `model.predict()` ở ngưỡng mặc định. Trước khi đánh giá test, nó kiểm tra schema, phiên bản scikit-learn, hash nguồn/split, run_id và đối chiếu AP validation với bundle. `reports/evaluation_run.json` ghi SHA-256 từng model, cấu hình/ngưỡng và hash bảng metrics. Các ca hồi quy bao gồm model sai nguồn/split, thiếu file, sai schema/phiên bản và khác AP validation.
 
 Tái tạo đầy đủ: Run All notebook 01 → 02 → 03 → 04 sau khi tạo môi trường theo README. Mỗi lần chạy ghi đè bộ model/báo cáo hiện tại với run_id mới; giữ cả model và báo cáo nếu cần lưu một thí nghiệm. Model sinh ra vẫn được Git bỏ qua. Các mốc lịch sử 29/10–09/11 được giữ theo ghi chép cũ, không coi là holdout chưa quan sát; notebook 04 ghi lại lần đánh giá mới với model chính thức.
 
-Các thay đổi đã được tích hợp và kiểm thử trên `dev`; chưa merge vào `main` và không thay thế xác nhận review chéo của thành viên.
+Nền tích hợp đã được merge vào `main`. Phạm vi hiện tại giữ ba mô hình theo đề bài; kết quả kiểm thử tự động không thay thế review chéo của thành viên.

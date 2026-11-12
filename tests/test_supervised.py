@@ -12,7 +12,7 @@ from sklearn.metrics import f1_score
 
 from src.config import FEATURE_COLUMNS
 from src.supervised import run_supervised, save_supervised_model
-from src.train import bot_probabilities, train_dummy, train_gradient_boosting
+from src.train import bot_probabilities, train_gradient_boosting
 
 
 def training_data():
@@ -23,21 +23,6 @@ def training_data():
 
 
 class SupervisedTests(unittest.TestCase):
-    def test_dummy_predicts_majority_and_bot_probability(self):
-        X, _ = training_data()
-        for majority in (0, 1):
-            y = np.full(len(X), majority)
-            y[:10] = 1 - majority
-            model = train_dummy(X, y)
-            np.testing.assert_array_equal(model.predict(X), np.full(len(X), majority))
-            np.testing.assert_array_equal(bot_probabilities(model, X), np.full(len(X), majority))
-
-    def test_single_class_dummy_handles_absent_bot_or_human(self):
-        X, _ = training_data()
-        for label in (0, 1):
-            model = train_dummy(X, np.full(len(X), label))
-            np.testing.assert_array_equal(bot_probabilities(model, X), np.full(len(X), label))
-
     def test_score_locates_bot_column_in_reversed_classes(self):
         class ReversedClasses:
             classes_ = np.array([1, 0])
@@ -55,7 +40,7 @@ class SupervisedTests(unittest.TestCase):
         expected = X.median().to_numpy(dtype=float)
         validation = X.copy() * 10000
         validation.iloc[0] = pd.NA
-        for train in (train_dummy, train_gradient_boosting):
+        for train in (train_gradient_boosting,):
             with self.subTest(trainer=train.__name__):
                 model = train(X, y)
                 np.testing.assert_allclose(model.named_steps["imputer"].statistics_, expected)
@@ -79,7 +64,7 @@ class SupervisedTests(unittest.TestCase):
     def test_schema_and_labels_are_checked(self):
         X, y = training_data()
         bad_inputs = [X.assign(label=y), X.assign(user_id="1"), X[list(reversed(FEATURE_COLUMNS))]]
-        for train in (train_dummy, train_gradient_boosting):
+        for train in (train_gradient_boosting,):
             for bad in bad_inputs:
                 with self.subTest(trainer=train.__name__), self.assertRaises(ValueError):
                     train(bad, y)
@@ -92,7 +77,7 @@ class SupervisedTests(unittest.TestCase):
 
     def test_bundle_roundtrip_preserves_probabilities_predictions_and_metadata(self):
         X, y = training_data()
-        for train in (train_dummy, train_gradient_boosting):
+        for train in (train_gradient_boosting,):
             with self.subTest(trainer=train.__name__), TemporaryDirectory() as directory:
                 model = train(X, y)
                 path = Path(directory) / "model.joblib"
@@ -106,9 +91,8 @@ class SupervisedTests(unittest.TestCase):
                 for key in ("config", "feature_columns", "thresholds", "random_state", "versions",
                             "fit_seconds", "run_id", "provenance"):
                     self.assertEqual(restored[key], bundle[key])
-                if train is train_dummy:
-                    self.assertEqual(restored["selection"]["config"], "fixed most_frequent baseline")
-                    self.assertEqual(restored["selection"]["threshold"], "fixed default; no threshold tuning")
+                self.assertEqual(restored["selection"]["config"], "maximum validation AP; first candidate on ties")
+                self.assertEqual(restored["selection"]["threshold"], "maximum validation bot F1; lowest cut on ties")
                 with self.assertRaises(ValueError):
                     restored["model"].predict(X[list(reversed(FEATURE_COLUMNS))])
 
@@ -135,7 +119,9 @@ class SupervisedTests(unittest.TestCase):
             np.testing.assert_allclose(bundle["model"].named_steps["imputer"].statistics_, train[list(FEATURE_COLUMNS)].median())
             manifest = root / "reports/supervised_run.json"
             self.assertTrue(manifest.exists())
-            self.assertEqual(len(pd.read_csv(root / "reports/supervised_validation_predictions.csv")), 2 * len(validation))
+            self.assertEqual(set(run["manifest"]["models"]), {"gradient_boosting"})
+            self.assertEqual(set(run["results"]["model"]), {"gradient_boosting"})
+            self.assertEqual(len(pd.read_csv(root / "reports/supervised_validation_predictions.csv")), len(validation))
 
 
 if __name__ == "__main__":

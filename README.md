@@ -2,7 +2,7 @@
 
 Dự án học máy phát hiện tài khoản Twitter có hành vi giống bot thông qua các đặc trưng hồ sơ. Dự án sử dụng Isolation Forest và One-Class SVM để phát hiện bất thường, đối chiếu với Gradient Boosting và phân tích các đặc trưng ảnh hưởng đến kết quả phân loại.
 
-> **Trạng thái trên `dev`:** đã hoàn thiện pipeline đặc trưng, split dùng chung, EDA trên train, hai mô hình anomaly (notebook 02), Dummy/Gradient Boosting (notebook 03), so sánh bốn mô hình và importance/phân tích lỗi (notebook 04). Bộ tích hợp ngày 10/11/2026 có **47/47 test đạt** và notebook 01–04 chạy lại thành công. Tập test đã được quan sát trong các thí nghiệm trước; lịch sử và lần đánh giá mới với model chính thức được ghi rõ trong notebook 04.
+> **Phạm vi theo đề bài:** trích xuất bốn đặc trưng hồ sơ, huấn luyện Isolation Forest và One-Class SVM, đối chiếu với Gradient Boosting và xác định các đặc trưng quan trọng. Notebook 01–04 trình bày lần lượt dữ liệu, anomaly detection, supervised benchmark và so sánh/feature importance. Tập test đã được quan sát trong các thí nghiệm trước; lịch sử sử dụng được ghi rõ trong notebook 04.
 
 ## Mục tiêu
 
@@ -10,7 +10,14 @@ Dự án học máy phát hiện tài khoản Twitter có hành vi giống bot t
 - Áp dụng **Isolation Forest** và **One-Class SVM** để phát hiện hành vi bất thường.
 - Xây dựng mô hình **Gradient Boosting Classifier** trên nhãn `bot`/`human` để so sánh.
 - Đánh giá các mô hình trên cùng tập kiểm thử.
-- Xác định các đặc trưng quan trọng và phân tích những trường hợp dự đoán sai.
+- Xác định các đặc trưng quan trọng ảnh hưởng đến phân loại bot.
+
+| Yêu cầu đề bài | Phần thực hiện |
+| --- | --- |
+| Follower/following ratio, posting frequency, account age, bio length | `src/features.py`, notebook 01 |
+| Isolation Forest và One-Class SVM | `src/train.py`, notebook 02 |
+| Benchmark với Gradient Boosting | `src/supervised.py`, notebook 03–04 |
+| Top feature importances | Notebook 04, `reports/feature_importance.csv` |
 
 Phạm vi phân loại dựa trên nhãn `bot` và `human` của dữ liệu. Nhãn bot hoặc điểm bất thường không đủ để kết luận tài khoản giả mạo danh tính hay có hành vi lừa đảo.
 
@@ -63,7 +70,6 @@ Quy tắc chất lượng dữ liệu:
 
 | Mô hình | Vai trò |
 | --- | --- |
-| Dummy Classifier | Baseline dự đoán lớp phổ biến nhất |
 | Isolation Forest | Phát hiện các mẫu dễ bị cô lập trong không gian đặc trưng |
 | One-Class SVM | Xác định các mẫu nằm ngoài vùng dữ liệu được mô hình học |
 | Gradient Boosting Classifier | Phân loại có giám sát và phân tích feature importance |
@@ -74,7 +80,7 @@ Các mô hình dùng cùng bộ đặc trưng và tập kiểm thử. Tiền x�
 
 Quy ước **`human = 0`, `bot = 1`**. Các chỉ số gồm Precision, Recall, F1 cho lớp bot, Macro-F1, Average Precision (AP), ROC-AUC và Accuracy; kèm confusion matrix, đường Precision–Recall và thời gian chạy.
 
-Notebook 04 đã tính impurity importance trên train, permutation importance trên validation và phân tích lỗi trên test. Kết quả nằm trong `reports/feature_importance.csv`, `reports/error_analysis.csv` và các biểu đồ. `reports/metrics.csv` so sánh bốn mô hình trên test; `reports/comparison_validation_metrics.csv` đối chiếu validation. Không xem các chỉ số sau chọn cấu hình/ngưỡng trên cùng validation là ước lượng độc lập cho dữ liệu mới.
+Notebook 04 tính impurity importance trên train và permutation importance trên validation để xác định các đặc trưng quan trọng. Kết quả nằm trong `reports/feature_importance.csv` và các biểu đồ. `reports/metrics.csv` so sánh ba mô hình trên test; `reports/comparison_validation_metrics.csv` đối chiếu validation. Không xem các chỉ số sau chọn cấu hình/ngưỡng trên cùng validation là ước lượng độc lập cho dữ liệu mới.
 
 ## Công nghệ dự kiến
 
@@ -93,7 +99,7 @@ Python, pandas, NumPy, scikit-learn, Matplotlib, Seaborn và Jupyter Notebook.
 ├── notebooks/
 │   ├── 01_data_exploration.ipynb       # Kiểm tra dữ liệu và EDA
 │   ├── 02_anomaly_detection.ipynb      # Isolation Forest, One-Class SVM
-│   ├── 03_supervised_baseline.ipynb    # Dummy, Gradient Boosting
+│   ├── 03_supervised_baseline.ipynb    # Gradient Boosting benchmark
 │   └── 04_evaluation.ipynb            # So sánh và giải thích mô hình
 ├── src/
 │   ├── __init__.py
@@ -113,9 +119,9 @@ Python, pandas, NumPy, scikit-learn, Matplotlib, Seaborn và Jupyter Notebook.
 
 Notebook là nơi thử nghiệm và trình bày kết quả; các hàm dùng chung nằm trong `src/`. Đường dẫn trong `src/config.py` được tính từ vị trí dự án, không gắn với máy của một thành viên.
 
-**Phần hiện chạy được:** `python -m src.data` audit CSV; `load_profiles()` trả về `(profiles, quality)` đã chuẩn hóa và kiểm tra; `build_features(profiles)` tính bốn đặc trưng; `python -m src.features` chạy toàn bộ pipeline và lưu kết quả; `split_features(features)` trả về `(train, validation, test)`. Notebook 01 gọi các hàm dùng chung và giữ lại các cell thực hành trước đó của người học. Bốn hàm `train_isolation_forest()`, `train_one_class_svm()`, `train_dummy()` và `train_gradient_boosting()` trả về pipeline đã fit. `anomaly_scores()`, `predict_bot()` và `select_threshold()` phục vụ anomaly; `bot_probabilities()` trả xác suất bot sau khi tìm đúng cột `classes_ == 1`. `evaluate_predictions()` tính chỉ số chung, trả AP/ROC-AUC là None nếu truth chỉ có một lớp; Macro-F1 luôn tính cả hai nhãn 0/1.
+**Phần hiện chạy được:** `python -m src.data` audit CSV; `load_profiles()` trả về `(profiles, quality)` đã chuẩn hóa và kiểm tra; `build_features(profiles)` tính bốn đặc trưng; `python -m src.features` chạy toàn bộ pipeline và lưu kết quả; `split_features(features)` trả về `(train, validation, test)`. Notebook 01 gọi các hàm dùng chung và giữ lại các cell thực hành trước đó của người học. Ba hàm `train_isolation_forest()`, `train_one_class_svm()` và `train_gradient_boosting()` trả về pipeline đã fit. `anomaly_scores()`, `predict_bot()` và `select_threshold()` phục vụ anomaly; `bot_probabilities()` trả xác suất bot sau khi tìm đúng cột `classes_ == 1`. `evaluate_predictions()` tính chỉ số chung, trả AP/ROC-AUC là None nếu truth chỉ có một lớp; Macro-F1 luôn tính cả hai nhãn 0/1.
 
-**Supervised (notebook 03, chỉ trên validation):** Dummy `most_frequent` dự đoán toàn human, Accuracy 0,6681, F1 bot 0 và ROC-AUC 0,5. Gradient Boosting được chọn theo AP từ lưới cố định 6 cấu hình: 100/200 cây × độ sâu 2/3/4, learning rate 0,1, min_samples_leaf=5, subsample=1, seed=42. Cấu hình chọn 200 cây, độ sâu 4 đạt AP **0,7876**, ROC-AUC **0,8615**. F1 bot ở ngưỡng 0,5 là **0,6953**; ngưỡng chọn theo F1 validation **0,369156** đạt Precision **0,6851**, Recall **0,7336**, F1 bot **0,7085**. Median imputer chỉ fit trên train, không refit trên train+validation. Xem [hướng dẫn bàn giao](reports/supervised_handoff.md) để tải model, áp dụng ngưỡng và đối chiếu provenance. Con số test 0,863 trong ghi chú cũ thuộc model tạm 300 cây/max_depth=5, giữ trong `reports/history/2026-11-09_interim_metrics.csv`; model chính thức hiện dùng cấu hình 200 cây/max_depth=4.
+**Supervised (notebook 03, chỉ trên validation):** Gradient Boosting được chọn theo AP từ lưới cố định 6 cấu hình: 100/200 cây × độ sâu 2/3/4, learning rate 0,1, min_samples_leaf=5, subsample=1, seed=42. Cấu hình chọn 200 cây, độ sâu 4 đạt AP **0,7876**, ROC-AUC **0,8615**. F1 bot ở ngưỡng 0,5 là **0,6953**; ngưỡng chọn theo F1 validation **0,369156** đạt Precision **0,6851**, Recall **0,7336**, F1 bot **0,7085**. Median imputer chỉ fit trên train, không refit trên train+validation. Xem [hướng dẫn bàn giao](reports/supervised_handoff.md) để tải model, áp dụng ngưỡng và đối chiếu provenance. Con số test 0,863 trong ghi chú cũ thuộc model tạm 300 cây/max_depth=5, giữ trong `reports/history/2026-11-09_interim_metrics.csv`; model chính thức hiện dùng cấu hình 200 cây/max_depth=4.
 
 **Phát hiện bất thường (notebook 02, chỉ trên validation):** Isolation Forest đạt ROC-AUC 0,378 và One-Class SVM (`nu=0.05`, `gamma=0.05`) đạt 0,565, so với 0,5 của xếp hạng ngẫu nhiên. Ngưỡng chọn trên validation chỉ cho F1 lớp bot khoảng 0,50, ngang mốc gắn nhãn tất cả là bot (0,498). Bot trong dữ liệu có hồ sơ điển hình, còn điểm ngoại lai chủ yếu là tài khoản người thật có nhiều follower. Notebook lưu model vào `models/*.joblib` (kèm cấu hình, đặc trưng và ngưỡng), bảng `reports/anomaly_validation_metrics.csv` và biểu đồ phân phối điểm trong `reports/figures/`. Kết quả test được báo cáo ở notebook 04; không đổi cấu hình/ngưỡng sau khi xem test.
 
@@ -124,6 +130,23 @@ Notebook là nơi thử nghiệm và trình bày kết quả; các hàm dùng ch
 `dataset/processed/` và `models/` được giữ trong Git bằng `.gitkeep`; dữ liệu và mô hình sinh ra bên trong được bỏ qua. Biểu đồ và bảng kết quả được lưu trong `reports/` để nhóm chọn đưa vào báo cáo/repository.
 
 ## Cài đặt và chạy
+
+### Bản thực hành đơn giản
+
+Sau khi cài các thư viện trong `requirements.txt`, chạy bản triển khai theo
+`docs/HUONG_DAN_CODE_DON_GIAN.md`:
+
+```powershell
+.\.venv\Scripts\python.exe simple_bot_detection.py
+```
+
+Nếu đã kích hoạt môi trường Python, dùng `python simple_bot_detection.py`.
+Script tự tạo bốn đặc trưng, chia train/validation/test 60/20/20, thử 9 cấu hình
+One-Class SVM và 6 cấu hình Gradient Boosting, chọn theo AP validation rồi chọn
+ngưỡng theo F1 validation. Terminal hiển thị kết quả test ở ngưỡng mặc định và
+ngưỡng validation, mốc tất cả là bot và bảng độ quan trọng đặc trưng theo hai cách.
+Script chỉ in kết quả, không ghi đè model hay báo cáo hiện có. Đây là bản học tập
+cho CSV đi kèm; quy trình kiểm tra dữ liệu đầy đủ vẫn nằm trong `src/`.
 
 ### 1. Chuẩn bị
 
@@ -243,15 +266,15 @@ python -m unittest discover -s tests -v
 
 Bộ kiểm thử dùng `unittest` có sẵn: ID dài/giữ số 0 đầu, nhãn và ID lỗi, index nguồn, following/tuổi bằng 0, tuổi âm, dữ liệu số thiếu/không hợp lệ/vô cực, bio Unicode/null/xuống dòng, làm tròn, bảo toàn CSV nguồn và chạy lại nhất quán.
 
-**47/47 test đạt** sau tích hợp. Kiểm thử bao gồm train-only imputation, Dummy đúng lớp phổ biến nhất, xác suất đúng lớp bot kể cả khi thứ tự lớp đảo/thiếu lớp, seed và lưu/tải pipeline. Các ca bổ sung kiểm tra không fit lại khi đánh giá, giữ quy tắc ngưỡng mặc định, phát hiện model sai nguồn/split/schema/phiên bản và AP validation không khớp.
+**45/45 test đạt** sau khi thu gọn về ba mô hình theo đề bài. Kiểm thử bao gồm train-only imputation, xác suất đúng lớp bot, seed và lưu/tải pipeline. Các ca bổ sung kiểm tra so sánh đúng ba mô hình, không fit lại khi đánh giá, giữ quy tắc ngưỡng mặc định, phát hiện model sai nguồn/split/schema/phiên bản và AP validation không khớp.
 
-Tái tạo Dummy/Gradient Boosting, bảng validation và metadata từ thư mục gốc:
+Tái tạo Gradient Boosting, bảng validation và metadata từ thư mục gốc:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.supervised
 ```
 
-Với Bash sau khi kích hoạt `.venv`: `python -m src.supervised`. Lệnh dùng lại `dataset/processed/split.csv`, chỉ fit trên train và chọn cấu hình/ngưỡng trên validation. Model nằm trong `models/dummy.joblib`, `models/gradient_boosting.joblib`; các báo cáo `supervised_validation_*.csv` và `supervised_run.json` nằm trong `reports/`. Mỗi lần chạy ghi đè bộ đầu ra này với `run_id` mới; lưu cùng model và báo cáo nếu cần giữ lịch sử thí nghiệm. Chạy notebook 03 để có thêm biểu đồ Precision–Recall/confusion matrix.
+Với Bash sau khi kích hoạt `.venv`: `python -m src.supervised`. Lệnh dùng lại `dataset/processed/split.csv`, chỉ fit trên train và chọn cấu hình/ngưỡng trên validation. Model nằm trong `models/gradient_boosting.joblib`; các báo cáo `supervised_validation_*.csv` và `supervised_run.json` nằm trong `reports/`. Mỗi lần chạy ghi đè bộ đầu ra này với `run_id` mới; lưu cùng model và báo cáo nếu cần giữ lịch sử thí nghiệm. Chạy notebook 03 để có thêm biểu đồ Precision–Recall/confusion matrix.
 
 ### 5. Chạy notebook
 
@@ -280,7 +303,7 @@ Mở địa chỉ local được in trong terminal nếu trình duyệt chưa t�
 
 Trong notebook 01, chạy cell thiết lập `project_root`, sau đó phần **Pipeline đặc trưng dùng chung**. Phần này gọi các hàm trong `src/` để đọc/kiểm tra dữ liệu, tính đặc trưng, lưu đầu ra và hiển thị thống kê chất lượng. Các cell thực hành trước đó được giữ nguyên để tham khảo; cách đọc chính thức là `load_profiles()` để bảo toàn văn bản bio. Có thể chạy lại pipeline từ notebook mà không chép công thức hoặc logic làm sạch vào cell.
 
-Notebook 01–04 đã chạy lại thành công trong lần tích hợp 10/11/2026; dữ liệu nguồn và file split được giữ nguyên. `src/comparison.py` kiểm tra bàn giao và đánh giá các model cố định, không huấn luyện lại. `reports/evaluation_run.json` liên kết kết quả với `run_id`, SHA-256 model, nguồn, split và mã nguồn; notebook 04 tạo lại nhận xét từ số liệu hiện tại. Các kết quả model tạm trước đó được giữ trong `reports/history/`. Việc review của thành viên và tích hợp `main` vẫn là bước riêng; `docs/` tiếp tục được Git bỏ qua.
+Notebook 01–04 đã chạy lại thành công trong lần tích hợp 10/11/2026; dữ liệu nguồn và file split được giữ nguyên. `src/comparison.py` kiểm tra bàn giao và đánh giá các model cố định, không huấn luyện lại. `reports/evaluation_run.json` liên kết kết quả với `run_id`, SHA-256 model, nguồn, split và mã nguồn; notebook 04 tạo lại nhận xét từ số liệu hiện tại. Các kết quả model tạm trước đó được giữ trong `reports/history/` để truy vết lịch sử, không thuộc bảng so sánh hiện tại. `docs/` tiếp tục được Git bỏ qua.
 
 ### 6. Đồng bộ môi trường giữa các thành viên
 

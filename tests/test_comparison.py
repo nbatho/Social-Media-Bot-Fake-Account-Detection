@@ -16,7 +16,7 @@ from src.comparison import (
 )
 from src.config import FEATURE_COLUMNS
 from src.evaluate import evaluate_predictions
-from src.train import train_dummy, train_gradient_boosting, train_isolation_forest, train_one_class_svm
+from src.train import train_gradient_boosting, train_isolation_forest, train_one_class_svm
 
 
 class ComparisonTests(unittest.TestCase):
@@ -30,7 +30,6 @@ class ComparisonTests(unittest.TestCase):
         self.X = pd.DataFrame(np.random.default_rng(9).uniform(1, 10, (80, 4)), columns=FEATURE_COLUMNS)
         self.y = (self.X["posting_frequency"] > 7).astype(int)
         models = {
-            "dummy": train_dummy(self.X, self.y),
             "gradient_boosting": train_gradient_boosting(self.X, self.y, n_estimators=10),
             "isolation_forest": train_isolation_forest(self.X, n_estimators=10),
             "one_class_svm": train_one_class_svm(self.X),
@@ -43,21 +42,22 @@ class ComparisonTests(unittest.TestCase):
                 "provenance": {"source_sha256": file_sha256(self.source), "split_sha256": file_sha256(self.split)},
             }
             scores = model_scores(name, bundle, self.X)
-            if name != "dummy":
-                bundle["thresholds"]["validation_f1"] = float(np.median(scores))
+            bundle["thresholds"]["validation_f1"] = float(np.median(scores))
             bundle["validation_metrics"] = [evaluate_predictions(self.y, np.zeros(len(self.y)), scores)]
             joblib.dump(bundle, self.root / f"{name}.joblib")
 
     def load(self):
         return load_bundles(self.root, source_path=self.source, split_path=self.split)
 
-    def test_all_four_models_roundtrip_without_refitting_or_dummy_threshold_tuning(self):
+    def test_three_required_models_roundtrip_without_refitting(self):
         with patch("sklearn.pipeline.Pipeline.fit", side_effect=AssertionError("must not refit")):
             bundles = self.load()
             results = evaluate_models(bundles, self.X, self.y, "validation")
             validate_validation_metrics(bundles, results)
-        self.assertEqual(len(results), 7)
-        self.assertEqual(results.loc[results.model == "dummy", "setting"].tolist(), ["default"])
+        self.assertEqual(set(results.model), {"isolation_forest", "one_class_svm", "gradient_boosting"})
+        self.assertEqual(len(results), 6)
+        for name in MODEL_NAMES:
+            self.assertEqual(results.loc[results.model == name, "setting"].tolist(), ["default", "validation_f1"])
         for name in MODEL_NAMES:
             self.assertEqual(len(bundles[name]["model_sha256"]), 64)
             row = results[(results.model == name) & (results.setting == "default")].iloc[0]
@@ -70,7 +70,7 @@ class ComparisonTests(unittest.TestCase):
     def test_source_and_split_mismatches_stop_before_evaluation(self):
         for field in ("source_sha256", "split_sha256"):
             with self.subTest(field=field):
-                path = self.root / "dummy.joblib"
+                path = self.root / "isolation_forest.joblib"
                 original = path.read_bytes()
                 bundle = joblib.load(path)
                 bundle["provenance"][field] = "wrong"
@@ -80,7 +80,7 @@ class ComparisonTests(unittest.TestCase):
                 path.write_bytes(original)
 
     def test_missing_file_schema_and_version_are_rejected(self):
-        path = self.root / "dummy.joblib"
+        path = self.root / "isolation_forest.joblib"
         original = path.read_bytes()
         for field, value, message in (("feature_columns", [], "feature_columns"),
                                       ("sklearn_version", "old", "scikit-learn")):
@@ -91,7 +91,7 @@ class ComparisonTests(unittest.TestCase):
                 self.load()
             path.write_bytes(original)
         path.unlink()
-        with self.assertRaisesRegex(FileNotFoundError, "dummy.joblib"):
+        with self.assertRaisesRegex(FileNotFoundError, "isolation_forest.joblib"):
             self.load()
 
     def test_changed_validation_ap_is_rejected(self):
