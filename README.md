@@ -1,344 +1,197 @@
 # Social Media Bot & Fake Account Detection
 
-Dự án học máy phát hiện tài khoản Twitter có hành vi giống bot thông qua các đặc trưng hồ sơ. Dự án sử dụng Isolation Forest và One-Class SVM để phát hiện bất thường, đối chiếu với Gradient Boosting và phân tích các đặc trưng ảnh hưởng đến kết quả phân loại.
+Phân loại tài khoản Twitter thành **human** và **bot** dựa trên bốn đặc trưng hồ sơ. Dự án dùng **Isolation Forest** và **One-Class SVM** để phát hiện bất thường, đối chiếu với **Gradient Boosting Classifier**, sau đó phân tích mức độ quan trọng của từng đặc trưng.
 
-> **Phạm vi theo đề bài:** trích xuất bốn đặc trưng hồ sơ, huấn luyện Isolation Forest và One-Class SVM, đối chiếu với Gradient Boosting và xác định các đặc trưng quan trọng. Notebook 01–04 trình bày lần lượt dữ liệu, anomaly detection, supervised benchmark và so sánh/feature importance. Tập test đã được quan sát trong các thí nghiệm trước; lịch sử sử dụng được ghi rõ trong notebook 04.
+## 1. Nội dung bốn notebook
 
-## Mục tiêu
+Chạy theo thứ tự **01 → 02 → 03 → 04**, sử dụng cùng môi trường Python.
 
-- Trích xuất tỷ lệ follower/following, tần suất đăng bài, tuổi tài khoản và độ dài bio.
-- Áp dụng **Isolation Forest** và **One-Class SVM** để phát hiện hành vi bất thường.
-- Xây dựng mô hình **Gradient Boosting Classifier** trên nhãn `bot`/`human` để so sánh.
-- Đánh giá các mô hình trên cùng tập kiểm thử.
-- Xác định các đặc trưng quan trọng ảnh hưởng đến phân loại bot.
-
-| Yêu cầu đề bài | Phần thực hiện |
+| Notebook | Nội dung |
 | --- | --- |
-| Follower/following ratio, posting frequency, account age, bio length | `src/data.py`, notebook 01 |
-| Isolation Forest và One-Class SVM | `src/models.py`, notebook 02 |
-| Benchmark với Gradient Boosting | `src/models.py`, notebook 03–04 |
-| Top feature importances | Notebook 04, `reports/feature_importance.csv` |
+| [01_data_exploration.ipynb](notebooks/01_data_exploration.ipynb) | Kiểm tra dữ liệu, giá trị thiếu và ID trùng; tạo bốn đặc trưng; chia tập; khảo sát phân phối và tương quan Spearman trên train. |
+| [02_anomaly_detection.ipynb](notebooks/02_anomaly_detection.ipynb) | Huấn luyện Isolation Forest và One-Class SVM; chọn cấu hình SVM theo AP validation; so sánh ngưỡng mặc định và ngưỡng F1 validation. |
+| [03_supervised_baseline.ipynb](notebooks/03_supervised_baseline.ipynb) | Huấn luyện Gradient Boosting; chọn cấu hình và ngưỡng trên validation; lưu mô hình, chỉ số và biểu đồ. |
+| [04_evaluation.ipynb](notebooks/04_evaluation.ipynb) | Tải ba mô hình đã lưu; so sánh validation/test; vẽ Precision–Recall, ma trận nhầm lẫn và phân tích feature importance. |
 
-Phạm vi phân loại dựa trên nhãn `bot` và `human` của dữ liệu. Nhãn bot hoặc điểm bất thường không đủ để kết luận tài khoản giả mạo danh tính hay có hành vi lừa đảo.
+Các hàm dùng chung nằm trong `src/`. Notebook 04 chỉ tải và đánh giá mô hình, không huấn luyện lại.
 
-## Dataset
+## 2. Dữ liệu và đặc trưng
 
 Nguồn: [Kaggle — Twitter Bots Accounts](https://www.kaggle.com/datasets/davidmartngutirrez/twitter-bots-accounts), tác giả David Martín Gutiérrez.
 
-File hiện có: [`dataset/twitter_human_bots_dataset.csv`](dataset/twitter_human_bots_dataset.csv).
+File đầu vào: `dataset/twitter_human_bots_dataset.csv`. Theo output hiện lưu trong notebook 01:
 
 | Thuộc tính | Giá trị |
 | --- | --- |
-| Số dòng dữ liệu | 37.438 |
+| Số tài khoản | 37.438 |
 | Số cột nguồn | 20, gồm một cột index không tên |
-| Nhãn `bot` | 12.425 (33,19%) |
-| Nhãn `human` | 25.013 (66,81%) |
-| ID trùng | 0 |
-| ID hoặc nhãn rỗng | 0 |
+| Human | 25.013 (66,81%) |
+| Bot | 12.425 (33,19%) |
+| ID trùng hoặc có nhãn mâu thuẫn | 0 |
+| Bio rỗng | 7.256 |
+| Bio chứa đúng chuỗi `None` | 1 |
 
-Thống kê được kiểm tra ngày **25/10/2026** trên CSV hồ sơ đầy đủ đang có trong repository. Các cột cần dùng: `id`, `account_type`, `followers_count`, `friends_count`, `statuses_count`, `description`, `account_age_days`. `friends_count` là số tài khoản đang theo dõi.
+Quy ước nhãn: **`human = 0`, `bot = 1`**. Cột `friends_count` biểu thị số tài khoản đang theo dõi.
 
-Có **7.256 bio là ô rỗng** và **một bio chứa chuỗi `"None"`**. Pipeline giữ nguyên văn bản `"None"` (độ dài 4), vì chưa có bằng chứng đây là ký hiệu thiếu của nguồn. Không dùng các token thiếu mặc định của pandas cho cột văn bản hoặc ID.
-
-## Đặc trưng và quy tắc xử lý
-
-| Đặc trưng | Công thức / ý nghĩa |
+| Đặc trưng | Cách tính |
 | --- | --- |
 | `follower_following_ratio` | `followers_count / max(friends_count, 1)` |
-| `posting_frequency` | `statuses_count / max(account_age_days, 1)`; số bài/ngày trung bình trong vòng đời tài khoản |
-| `account_age_days` | Tuổi tài khoản do nguồn cung cấp; số âm/không đọc được chuyển thành thiếu |
-| `bio_length` | Độ dài chuỗi `description`; ô CSV rỗng có độ dài 0 theo giả định của nhóm |
+| `posting_frequency` | `statuses_count / max(account_age_days, 1)` |
+| `account_age_days` | Tuổi tài khoản theo dữ liệu nguồn, tính bằng ngày |
+| `bio_length` | Độ dài chuỗi `description`, gồm cả khoảng trắng và xuống dòng |
 
-Tuổi tài khoản là giá trị lịch sử của nguồn, **không phải tuổi tại ngày chạy chương trình**. CSV không có `observed_at`, nên không xác định được chính xác thời điểm quan sát; pipeline dùng trực tiếp `account_age_days`, không tính lại từ `created_at` hoặc ngày hiện tại. Tần suất đăng là trung bình toàn bộ vòng đời, không phản ánh riêng hoạt động gần đây.
+Pipeline dừng nếu thiếu cột bắt buộc, ID rỗng/trùng hoặc nhãn không hợp lệ. Giá trị số âm hoặc không đọc được được chuyển thành thiếu. Mẫu số bằng 0 được thay bằng 1; mẫu số thiếu vẫn cho kết quả thiếu. Bio rỗng có độ dài 0; chuỗi `None` và `NA` được giữ nguyên khi đọc bằng `load_profiles()`.
 
-Quy tắc chất lượng dữ liệu:
+Notebook 01 đọc sơ bộ bằng pandas mặc định để đối chiếu cách nhận diện bio thiếu. Bảng đặc trưng chính thức được tạo bằng `run_pipeline()`, sử dụng quy tắc giữ nguyên văn bản nêu trên. Kết quả hiện lưu có **37.438 dòng × 6 cột**, không có đặc trưng thiếu.
 
-- Đọc ID dưới dạng chuỗi, ánh xạ `id` → `user_id`, `human` → `label=0`, `bot` → `label=1`. Giữ tên nguồn `friends_count` cho số tài khoản đang theo dõi.
-- Thiếu cột bắt buộc, ID rỗng/trùng hoặc nhãn ngoài `human`/`bot` sẽ báo lỗi và dừng; không âm thầm xóa dòng. Các cột khác của nguồn không tham gia mô hình.
-- Bốn cột số được đọc bằng `pd.to_numeric(errors="coerce")`; số không đọc được và số âm trở thành giá trị thiếu. Bản rút gọn không phân loại chi tiết lỗi số hay kiểm tra số đếm nguyên.
-- Following bằng 0 hoặc tuổi bằng 0 là hợp lệ: mẫu số dùng 1. Mẫu số thiếu hoặc tuổi âm vẫn cho đặc trưng thiếu. Median imputer và scaler chỉ được fit trong pipeline mô hình trên train.
-- Bio rỗng có độ dài 0 vì dữ liệu không phân biệt được bio thực sự rỗng với bio chưa thu thập được. `keep_default_na=False` giữ nguyên văn bản `None`, `NA`, `nan`. Unicode được đếm theo code point của Python; khoảng trắng và xuống dòng được tính vào độ dài, không cắt nội dung bio.
-- Tự tính `posting_frequency` từ `statuses_count` và `account_age_days`; không dùng cột tần suất đã làm tròn của nguồn.
+Chỉ bốn đặc trưng trên được đưa vào mô hình. `user_id` dùng để định danh; `label` dùng để huấn luyện có giám sát và đánh giá.
 
-Đầu ra:
+## 3. Chia tập và huấn luyện
 
-- `dataset/processed/features.csv`: `user_id, follower_following_ratio, posting_frequency, account_age_days, bio_length, label`, đúng thứ tự này. Giá trị số thiếu được ghi thành ô CSV rỗng.
-- Notebook 01 hiển thị số giá trị thiếu, phân bố nhãn và quy mô các tập; không sinh báo cáo chất lượng JSON riêng.
-- Chỉ bốn cột trong `FEATURE_COLUMNS` là đầu vào mô hình; `user_id` và `label` không phải đặc trưng dự đoán.
+Dữ liệu được chia theo tài khoản, phân tầng theo nhãn với **seed 42**:
 
-## Phương pháp
+| Tập | Tỷ lệ | Số tài khoản |
+| --- | --- | --- |
+| Train | 60% | 22.462 |
+| Validation | 20% | 7.488 |
+| Test | 20% | 7.488 |
 
-| Mô hình | Vai trò |
-| --- | --- |
-| Isolation Forest | Phát hiện các mẫu dễ bị cô lập trong không gian đặc trưng |
-| One-Class SVM | Xác định các mẫu nằm ngoài vùng dữ liệu được mô hình học |
-| Gradient Boosting Classifier | Phân loại có giám sát và phân tích feature importance |
+Lần đầu chạy, `split_features()` lưu phân hoạch vào `dataset/processed/split.csv`. Những lần sau dùng lại file này; nếu tập ID không khớp dữ liệu hiện tại, hàm báo lỗi. Giữ `split.csv` để các lần chạy sử dụng cùng phân hoạch.
 
-Các mô hình dùng cùng bộ đặc trưng và tập kiểm thử. Tiền xử lý được fit trên train; cấu hình và ngưỡng được chọn trên validation. Với các mô hình phát hiện bất thường, cần phân biệt kết quả ở ngưỡng mặc định và kết quả có sử dụng nhãn validation để hiệu chỉnh.
+| Mô hình | Tiền xử lý | Cấu hình |
+| --- | --- | --- |
+| Isolation Forest | Điền thiếu bằng trung vị | 300 cây, `contamination="auto"`, seed 42 |
+| One-Class SVM | Điền thiếu bằng trung vị → `log1p` → StandardScaler | Kernel RBF; thử `nu ∈ {0.05, 0.1, 0.2}` và `gamma ∈ {"scale", 0.05, 1.0}` |
+| Gradient Boosting | Điền thiếu bằng trung vị | Thử 100/200 cây × độ sâu 2/3/4; learning rate 0,1; tối thiểu 5 mẫu/lá; seed 42 |
 
-## Đánh giá và giải thích
+Tiền xử lý chỉ được fit trên train. Hai detector được huấn luyện trên toàn bộ tập train, không sử dụng nhãn train. Gradient Boosting sử dụng nhãn train để học phân loại.
 
-Quy ước **`human = 0`, `bot = 1`**. Các chỉ số gồm Precision, Recall, F1 cho lớp bot, Macro-F1, Average Precision (AP), ROC-AUC và Accuracy; kèm các ô TN/FP/FN/TP và đường Precision–Recall. Các tập validation/test hiện có đủ hai lớp để tính AP và ROC-AUC.
+Cấu hình SVM và Gradient Boosting được chọn theo **Average Precision (AP) validation cao nhất**. Sau đó, mỗi mô hình được chọn ngưỡng tối đa **F1 lớp bot trên validation**. Các bước chọn cấu hình và ngưỡng có sử dụng nhãn validation; mô hình không được fit lại trên train + validation.
 
-Notebook 04 tính impurity importance trên train và permutation importance trên validation để xác định các đặc trưng quan trọng. Kết quả nằm trong `reports/feature_importance.csv` và các biểu đồ. `reports/metrics.csv` so sánh ba mô hình trên test; `reports/comparison_validation_metrics.csv` đối chiếu validation. Không xem các chỉ số sau chọn cấu hình/ngưỡng trên cùng validation là ước lượng độc lập cho dữ liệu mới.
+Mỗi mô hình được đánh giá theo hai thiết lập:
 
-## Công nghệ dự kiến
+- **`default`**: detector ánh xạ dự đoán `-1` thành bot; Gradient Boosting dùng quyết định mặc định của bộ phân loại.
+- **`validation_f1`**: áp dụng ngưỡng đã chọn trên validation, giữ nguyên khi đánh giá test.
 
-Python, pandas, NumPy, scikit-learn, Matplotlib, Seaborn và Jupyter Notebook.
+Điểm dùng cho AP và ROC-AUC là `-decision_function` đối với detector và xác suất lớp bot đối với Gradient Boosting. Điểm càng lớn càng được mô hình xem là giống bot. Các chỉ số khác gồm precision, recall, F1 lớp bot, Macro-F1, accuracy và các ô TN/FP/FN/TP.
 
-## Cấu trúc dự án
+## 4. Kết quả trong notebook hiện tại
+
+Các số liệu dưới đây lấy từ **output đã lưu trong notebook 04**, làm tròn đến bốn chữ số thập phân.
+
+| Mô hình | Thiết lập | F1 bot trên test | AP trên test | ROC-AUC trên test |
+| --- | --- | --- | --- | --- |
+| Isolation Forest | `default` | 0,1365 | 0,2809 | 0,3685 |
+| Isolation Forest | `validation_f1` | 0,4978 | 0,2809 | 0,3685 |
+| One-Class SVM | `default` | 0,0944 | 0,3731 | 0,5643 |
+| One-Class SVM | `validation_f1` | 0,4960 | 0,3731 | 0,5643 |
+| Gradient Boosting | `default` | 0,6889 | 0,7889 | 0,8613 |
+| Gradient Boosting | `validation_f1` | **0,7051** | **0,7889** | **0,8613** |
+
+Cấu hình được chọn là **One-Class SVM: `nu=0.05`, `gamma=0.05`** và **Gradient Boosting: 200 cây, độ sâu 4**. Ngưỡng Gradient Boosting chọn trên validation là khoảng **0,369156**; khi áp dụng trên test, precision bot đạt **0,6795**, recall bot **0,7328** và accuracy **0,7966**.
+
+Gradient Boosting phân biệt hai lớp tốt nhất trong ba mô hình. Hai detector có F1 sau hiệu chỉnh gần mốc dự đoán tất cả tài khoản là bot (**0,498** trên test), cho thấy giả định bot là điểm bất thường chưa phù hợp với bốn đặc trưng hồ sơ trong dữ liệu này.
+
+Notebook 04 phân tích Gradient Boosting bằng impurity importance trên train và permutation importance trên validation, với 10 lần xáo trộn:
+
+| Đặc trưng | Impurity importance | Mức giảm AP validation khi xáo trộn |
+| --- | --- | --- |
+| `posting_frequency` | 0,3908 | 0,2082 |
+| `account_age_days` | 0,2327 | 0,1533 |
+| `follower_following_ratio` | 0,2208 | 0,1527 |
+| `bio_length` | 0,1557 | 0,0773 |
+
+`posting_frequency` có mức quan trọng lớn nhất theo cả hai cách đo. Feature importance phản ánh cách mô hình sử dụng đặc trưng, không chứng minh quan hệ nhân quả.
+
+## 5. Cấu trúc dự án và đầu ra
 
 ```text
 .
 ├── README.md
 ├── requirements.txt
-├── .gitignore
 ├── dataset/
-│   ├── twitter_human_bots_dataset.csv  # CSV nguồn, giữ nguyên
-│   └── processed/                     # Features và split sinh ra
+│   ├── twitter_human_bots_dataset.csv
+│   └── processed/                # features.csv và split.csv
 ├── notebooks/
-│   ├── 00_full_pipeline_colab.ipynb    # Bản gộp độc lập để tải lên Colab
-│   ├── 01_data_exploration.ipynb       # Kiểm tra dữ liệu và EDA
-│   ├── 02_anomaly_detection.ipynb      # Isolation Forest, One-Class SVM
-│   ├── 03_supervised_baseline.ipynb    # Gradient Boosting benchmark
-│   └── 04_evaluation.ipynb            # So sánh và giải thích mô hình
+│   ├── 01_data_exploration.ipynb
+│   ├── 02_anomaly_detection.ipynb
+│   ├── 03_supervised_baseline.ipynb
+│   └── 04_evaluation.ipynb
 ├── src/
 │   ├── __init__.py
-│   ├── config.py                      # 22 dòng: đường dẫn, seed, nhãn, đặc trưng
-│   ├── data.py                        # 67 dòng: đọc CSV, tạo đặc trưng, chia tập
-│   ├── models.py                      # 107 dòng: train, tìm cấu hình/ngưỡng, lưu/tải
-│   └── evaluate.py                    # 51 dòng: chỉ số, so sánh, feature importance
+│   ├── config.py                 # Đường dẫn, nhãn, seed và đặc trưng
+│   ├── data.py                   # Đọc dữ liệu, tạo đặc trưng, chia tập
+│   ├── models.py                 # Huấn luyện, chọn cấu hình/ngưỡng, lưu/tải
+│   └── evaluate.py               # Chỉ số và feature importance
 ├── tests/
-│   └── test_pipeline.py               # 12 kiểm thử chính
-├── models/                            # Pipeline đã fit; sinh lại từ code, được Git bỏ qua
-└── reports/
-    ├── metrics.csv                    # So sánh 3 mô hình × 2 thiết lập trên test
-    ├── feature_importance.csv         # Impurity và permutation importance
-    ├── *_validation_*.csv             # Kết quả và tìm cấu hình trên validation
-    ├── history/                       # Kết quả model tạm trước đây
-    └── figures/                       # Biểu đồ từ notebook 01–04
+│   └── test_pipeline.py
+├── models/                       # Mô hình từ notebook 02–03
+└── reports/                      # Bảng kết quả và thư mục figures/
 ```
 
-Notebook là nơi thử nghiệm và trình bày kết quả; các hàm dùng chung nằm trong `src/`. Đường dẫn trong `src/config.py` được tính từ vị trí dự án, không gắn với máy của một thành viên.
+Các file sau được tạo hoặc ghi lại khi chạy notebook:
 
-**Phần hiện chạy được:** bốn mô-đun chính có tổng **247 dòng** (ngoài `__init__.py`). `python -m src.data` đọc CSV, tạo và lưu `features.csv`; `load_profiles()` trả về một DataFrame, `build_features(profiles)` tạo bốn đặc trưng, `run_pipeline()` trả về bảng đặc trưng và `split_features(features)` trả `(train, validation, test)`. Ba hàm huấn luyện trong `src.models` nhận cả bảng và tự lấy `FEATURE_COLUMNS`, nên ID/label không lọt vào đầu vào. `bot_scores()` trả điểm càng lớn càng giống bot cho cả ba mô hình; `default_predictions()` dùng quyết định mặc định, `select_threshold()` trả ngưỡng F1 validation. `search()` dùng chung để chọn cấu hình SVM và Gradient Boosting theo AP validation; `save_model()`/`load_model()` lưu/tải pipeline, cấu hình, ngưỡng và danh sách đặc trưng. `src.evaluate` tính chỉ số, so sánh model đã lưu và tính hai loại feature importance.
+| Bước | Đầu ra |
+| --- | --- |
+| Notebook 01 | `dataset/processed/features.csv`, `split.csv`; biểu đồ phân phối và tương quan trên train |
+| Notebook 02 | `models/isolation_forest.joblib`, `models/one_class_svm.joblib`; `reports/anomaly_validation_metrics.csv`; biểu đồ điểm bất thường |
+| Notebook 03 | `models/gradient_boosting.joblib`; `reports/supervised_validation_search.csv`, `supervised_validation_metrics.csv`; biểu đồ Precision–Recall và ma trận nhầm lẫn validation |
+| Notebook 04 | `reports/metrics.csv`, `comparison_validation_metrics.csv`, `feature_importance.csv`; biểu đồ Precision–Recall test, ma trận nhầm lẫn và feature importance |
 
-**Supervised (notebook 03, chỉ trên validation):** Gradient Boosting được chọn theo AP từ lưới cố định 6 cấu hình: 100/200 cây × độ sâu 2/3/4, learning rate 0,1, min_samples_leaf=5, subsample=1, seed=42. Cấu hình chọn 200 cây, độ sâu 4 đạt AP **0,7876**, ROC-AUC **0,8615**. F1 bot ở ngưỡng 0,5 là **0,6953**; ngưỡng chọn theo F1 validation **0,369156** đạt Precision **0,6851**, Recall **0,7336**, F1 bot **0,7085**. Median imputer chỉ fit trên train, không refit trên train+validation. Notebook 04 tải model bằng `load_model("gradient_boosting")` và dùng ngưỡng `bundle["threshold"]`. Con số test 0,863 trong ghi chú cũ thuộc model tạm 300 cây/max_depth=5, giữ trong `reports/history/2026-11-09_interim_metrics.csv`; model chính thức hiện dùng cấu hình 200 cây/max_depth=4.
+Biểu đồ được lưu trong `reports/figures/`. Mỗi file mô hình chứa pipeline đã fit, cấu hình, ngưỡng và danh sách đặc trưng. Nếu bản source đã được dọn kết quả, chạy lại bốn notebook để tạo đầy đủ các file trên.
 
-**Phát hiện bất thường (notebook 02, chỉ trên validation):** Isolation Forest đạt ROC-AUC 0,378 và One-Class SVM (`nu=0.05`, `gamma=0.05`) đạt 0,565, so với 0,5 của xếp hạng ngẫu nhiên. Ngưỡng chọn trên validation chỉ cho F1 lớp bot khoảng 0,50, ngang mốc gắn nhãn tất cả là bot (0,498). Bot trong dữ liệu có hồ sơ điển hình, còn điểm ngoại lai chủ yếu là tài khoản người thật có nhiều follower. Notebook lưu model vào `models/*.joblib` (kèm cấu hình, đặc trưng và ngưỡng), bảng `reports/anomaly_validation_metrics.csv` và biểu đồ phân phối điểm trong `reports/figures/`. Kết quả test được báo cáo ở notebook 04; không đổi cấu hình/ngưỡng sau khi xem test.
+## 6. Cài đặt và chạy
 
-**Chia tập:** nguồn không có split chính thức, nên tài khoản được chia 60/20/20, stratify theo nhãn, seed `RANDOM_STATE`. Mỗi `user_id` thuộc đúng một tập. Lần chạy đầu lưu `user_id → split` vào `dataset/processed/split.csv`; các lần sau dùng lại file này để mọi notebook có cùng tập kiểm thử. Nếu file không khớp đúng tập `user_id` hiện có, hàm báo lỗi chứ không tự tạo split mới. Trên CSV hiện tại: train 22.462, validation 7.488, test 7.488 dòng; tỷ lệ bot mỗi tập là 33,19%.
+Môi trường mục tiêu là **Python 3.14.x, 64-bit**, với thư viện trong `requirements.txt`. Giải nén source và mở terminal tại thư mục chứa `README.md`.
 
-`dataset/processed/` và `models/` được giữ trong Git bằng `.gitkeep`; dữ liệu và mô hình sinh ra bên trong được bỏ qua. Biểu đồ và bảng kết quả được lưu trong `reports/` để nhóm chọn đưa vào báo cáo/repository.
-
-## Cài đặt và chạy
-
-### 1. Chuẩn bị
-
-- **Python 3.14.x bản 64-bit**; môi trường mục tiêu của nhóm là **Python 3.14.5**. Có thể tải Python từ [trang chính thức](https://www.python.org/downloads/windows/).
-- **Git** để tải và quản lý mã nguồn.
-- **VS Code** với extension **Python** và **Jupyter** của Microsoft nếu muốn chạy notebook trong trình soạn thảo.
-
-Hướng dẫn hỗ trợ **PowerShell trên Windows** và **Bash** (Git Bash trên Windows hoặc Bash trên Linux/macOS/WSL). Chạy lệnh tại thư mục gốc repository, nơi chứa `README.md`, `requirements.txt` và thư mục `dataset/`; chọn phần tương ứng với terminal và hệ điều hành của bạn.
-
-### 2. Tạo môi trường ảo `.venv`
-
-**PowerShell — Windows:**
+### Windows — PowerShell
 
 ```powershell
-python --version
 python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m jupyterlab
 ```
 
-Các bước PowerShell bên dưới gọi trực tiếp Python trong `.venv`, vì vậy không cần chạy `Activate.ps1`.
-
-**Bash — Git Bash trên Windows:**
+### Linux/macOS — Bash
 
 ```bash
-python --version
-python -m venv .venv
-source .venv/Scripts/activate
-```
-
-**Bash — Linux/macOS/WSL:**
-
-```bash
-python3.14 --version
 python3.14 -m venv .venv
 source .venv/bin/activate
-```
-
-Kết quả kiểm tra phiên bản mong đợi là `Python 3.14.x`. Trên Windows có nhiều phiên bản Python, có thể thay lệnh tạo môi trường bằng `py -3.14 -m venv .venv`. Nếu lệnh `python` mở Microsoft Store hoặc không chạy được, kiểm tra lại Python/PATH hoặc dùng lệnh `py` tương ứng. Trên Linux/macOS/WSL, cần cài Python 3.14 và thành phần `venv` tương ứng trước khi tạo môi trường.
-
-Chỉ tạo `.venv` một lần cho mỗi môi trường hệ điều hành. Với Bash, sau khi `source` thành công, các lệnh `python` bên dưới dùng Python trong `.venv`. Mỗi lần mở terminal Bash mới, chạy lại lệnh `source` đúng với hệ điều hành; dùng `deactivate` khi muốn thoát môi trường. Nếu đổi từ Windows sang WSL/Linux/macOS, tạo `.venv` riêng trong bản checkout của hệ điều hành đó, không dùng chung thư mục `.venv` của Windows.
-
-### 3. Cài thư viện
-
-**PowerShell:**
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-**Bash — sau khi kích hoạt `.venv`:**
-
-```bash
-python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+python -m jupyterlab
 ```
 
-File [`requirements.txt`](requirements.txt) gồm:
+Trong JupyterLab, mở từng notebook trong `notebooks/` và chọn **Run All** theo thứ tự **01 → 02 → 03 → 04**. Thư mục làm việc của notebook cần là thư mục gốc dự án hoặc `notebooks/` để tìm được `src/`.
 
-| Thư viện | Công dụng |
-| --- | --- |
-| pandas, NumPy | Đọc dữ liệu, làm sạch và tính đặc trưng |
-| scikit-learn | Tiền xử lý, huấn luyện và đánh giá mô hình |
-| Matplotlib, Seaborn | Trực quan hóa dữ liệu và kết quả |
-| ipykernel | Chạy Python trong notebook |
-| JupyterLab | Mở và chạy notebook trên trình duyệt |
-| joblib | Lưu và tải mô hình |
+Nếu dùng VS Code, mở thư mục dự án, cài extension Python và Jupyter, rồi chọn kernel `.venv` trong mỗi notebook trước khi chạy. Notebook 04 cần ba file mô hình được tạo bởi notebook 02 và 03.
 
-### 4. Kiểm tra môi trường
-
-**PowerShell:**
-
-```powershell
-.\.venv\Scripts\python.exe --version
-.\.venv\Scripts\python.exe -c "import pandas, numpy, sklearn, matplotlib, seaborn, ipykernel, jupyterlab, joblib; print('Môi trường OK')"
-.\.venv\Scripts\python.exe -m pip check
-```
-
-**Bash — sau khi kích hoạt `.venv`:**
-
-```bash
-python --version
-python -c "import pandas, numpy, sklearn, matplotlib, seaborn, ipykernel, jupyterlab, joblib; print('Môi trường OK')"
-python -m pip check
-```
-
-Nếu các thư viện import thành công, chương trình in `Môi trường OK`. Lệnh `pip check` cần trả về `No broken requirements found`.
-
-Sau khi cài requirements, chạy pipeline từ thư mục gốc dự án:
-
-**PowerShell:**
+Để chỉ tạo bảng đặc trưng bằng PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.data
 ```
 
-**Bash — sau khi kích hoạt `.venv`:**
+Lệnh này tạo `features.csv`; việc chia tập và tạo báo cáo được thực hiện trong các notebook.
 
-```bash
-python -m src.data
-```
-
-Lệnh tạo `dataset/processed/features.csv`. Kết quả trên CSV hiện tại: **37.438 dòng × 6 cột**, giữ toàn bộ dòng, không có đặc trưng thiếu. Chạy lại ghi đè bảng đặc trưng, không ghi vào CSV nguồn. Notebook 01 tạo hoặc dùng lại split và hiển thị thống kê chính.
-
-Chạy kiểm thử từ thư mục gốc:
-
-PowerShell:
+Chạy bộ kiểm thử bằng PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
 ```
 
-Bash (sau khi kích hoạt `.venv`):
+Trên Bash sau khi kích hoạt `.venv`, dùng `python -m src.data` và `python -B -m unittest discover -s tests -v`. Bộ kiểm thử gồm 12 test về tạo đặc trưng, dữ liệu không hợp lệ, phân hoạch, điểm mô hình, chọn ngưỡng và chỉ số đánh giá.
 
-```bash
-python -m unittest discover -s tests -v
-```
+## 7. Giới hạn và tái lập kết quả
 
-Bộ kiểm thử dùng `unittest` có sẵn, gồm **12 test** trong `tests/test_pipeline.py`: công thức và mẫu số 0, bio rỗng/chuỗi `None`, số âm/chữ thành thiếu, ID/nhãn/cột lỗi, chia tập đầy đủ và dùng lại, dữ liệu không khớp split, chiều điểm detector, nhãn không lọt vào đặc trưng, Gradient Boosting học tín hiệu, ngưỡng tối đa F1 và các chỉ số tính tay.
-
-Tái tạo model và báo cáo bằng Run All notebook 01 → 02 → 03 → 04. Notebook 02 lưu hai detector; notebook 03 lưu `models/gradient_boosting.joblib`, bảng validation và bảng tìm kiếm. Notebook 04 tải các model đã lưu để đánh giá, không huấn luyện lại.
-
-### 5. Chạy notebook
-
-**Google Colab — một notebook duy nhất:**
-
-1. Tải [`notebooks/00_full_pipeline_colab.ipynb`](notebooks/00_full_pipeline_colab.ipynb) lên Colab.
-2. Chọn runtime Python / CPU và **Run all**. Khi được yêu cầu, tải lên `dataset/twitter_human_bots_dataset.csv` từ máy.
-3. Notebook tự cài thư viện, định nghĩa các hàm trực tiếp trong cell (không tạo thư mục `src/`), chạy đủ bốn phần theo thứ tự và tải ZIP kết quả ở cell cuối. Không cần tải riêng `src/` hoặc bốn notebook gốc. Lưu ZIP trước khi đóng runtime; ZIP chứa cả `split.csv` để dùng lại phân hoạch.
-
-Bản Colab dùng cùng công thức đặc trưng, seed, lưới cấu hình và cách chọn ngưỡng với notebook 01–04. Khi chạy local, kết quả nằm trong thư mục riêng `bot_detection_colab/`; nếu tìm thấy CSV và split của dự án, notebook sao chép chúng để dùng lại. Sau khi sửa `src/` hoặc notebook gốc, chạy `python scripts/build_colab_notebook.py` để tạo lại bản gộp.
-
-**Trong VS Code:**
-
-1. Mở thư mục gốc dự án bằng **File → Open Folder**.
-2. Mở Command Palette (`Ctrl + Shift + P` trên Windows/Linux hoặc `Cmd + Shift + P` trên macOS), chọn **Python: Select Interpreter** rồi chọn Python của dự án: `.venv\Scripts\python.exe` trên Windows hoặc `.venv/bin/python` trên Linux/macOS/WSL.
-3. Chọn **Select Kernel → Python Environments → .venv** trong từng notebook.
-4. Chạy **Run All** lần lượt notebook **01 → 02 → 03 → 04**. Notebook 01 kiểm tra dữ liệu và EDA; 02 tạo model anomaly; 03 tạo model supervised; 04 chỉ tải model, so sánh validation rồi đánh giá test và tính importance. Không đổi cấu hình/ngưỡng dựa trên kết quả test.
-
-**Hoặc dùng JupyterLab trên trình duyệt:**
-
-PowerShell:
-
-```powershell
-.\.venv\Scripts\python.exe -m jupyterlab
-```
-
-Bash, sau khi kích hoạt `.venv`:
-
-```bash
-python -m jupyterlab
-```
-
-Mở địa chỉ local được in trong terminal nếu trình duyệt chưa tự mở. Vào `notebooks/` và mở notebook 01 với kernel Python của môi trường; nhấn `Ctrl + C` trong terminal khi muốn dừng JupyterLab.
-
-Trong notebook 01, chạy cell thiết lập `project_root`, sau đó phần **Pipeline đặc trưng dùng chung**. Phần này gọi các hàm trong `src/` để đọc/kiểm tra dữ liệu, tính đặc trưng, lưu đầu ra và hiển thị số giá trị thiếu. Các cell thực hành trước đó được giữ nguyên để tham khảo; cách đọc chính thức là `load_profiles()` để bảo toàn văn bản bio. Có thể chạy lại pipeline từ notebook mà không chép công thức hoặc logic làm sạch vào cell.
-
-`compare_models()` trong `src.evaluate` đánh giá các model cố định, không huấn luyện lại; notebook 04 tạo nhận xét từ số liệu hiện tại. Các kết quả model tạm trước đó được giữ trong `reports/history/`, không thuộc bảng so sánh hiện tại. `docs/` tiếp tục được Git bỏ qua.
-
-**Đã kiểm chứng ngày 12/11/2026:** 12/12 test đạt; notebook 01–04 chạy đủ mọi cell và lưu đầy đủ biểu đồ. Bảng đặc trưng 37.438 dòng, các chỉ số giữ lại trong `metrics.csv` và cả hai loại feature importance khớp bản trước khi rút gọn, sai lệch số bằng 0. CSV nguồn và `split.csv` giữ nguyên; SVM vẫn chọn `nu=0.05, gamma=0.05`, Gradient Boosting chọn 200 cây, độ sâu 4.
-
-### Quy tắc tái lập kết quả
-
-Bản rút gọn không còn tự kiểm tra SHA-256 nguồn/split/code, `run_id` hoặc phiên bản scikit-learn để chặn model cũ. `load_model()` chỉ đối chiếu danh sách đặc trưng. Nhóm phải tuân thủ:
-
-1. **Chạy theo thứ tự 01 → 02 → 03 → 04.** Mỗi lần sửa notebook 02 hoặc 03 phải chạy lại notebook 04; nếu sửa dữ liệu hoặc code dùng chung, chạy lại cả bốn.
-2. **Không xóa `dataset/processed/split.csv`.** Đây là phân hoạch cố định dùng chung. Nếu tạo lại split, không mặc định các kết quả cũ vẫn so sánh được; phải huấn luyện và đánh giá lại toàn bộ.
-3. **Không sửa lưới cấu hình hay cách chọn ngưỡng sau khi đã xem test.** Nếu buộc phải sửa, ghi rõ trong báo cáo rằng test đã được xem trước. Lịch sử quan sát test hiện có được giữ trong notebook 04.
-
-### 6. Đồng bộ môi trường giữa các thành viên
-
-Mỗi thành viên tạo `.venv` trên máy của mình và cài từ cùng `requirements.txt`. File này quy định khoảng phiên bản thư viện, chưa cố định toàn bộ phiên bản chính xác. Khi nhóm đã kiểm tra môi trường chạy ổn, có thể lưu một bản cố định:
-
-**PowerShell:**
-
-```powershell
-.\.venv\Scripts\python.exe -m pip freeze > requirements-lock.txt
-```
-
-**Bash — sau khi kích hoạt `.venv`:**
-
-```bash
-python -m pip freeze > requirements-lock.txt
-```
-
-Máy còn lại dùng cùng Python 3.14.x, tạo `.venv` và cài bằng:
-
-**PowerShell:**
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-lock.txt
-```
-
-**Bash — sau khi kích hoạt `.venv`:**
-
-```bash
-python -m pip install -r requirements-lock.txt
-```
-
-`requirements-lock.txt` chỉ có sau khi chạy lệnh xuất môi trường. Các file requirements được chia sẻ qua Git; `.venv/` và cache được bỏ qua bởi `.gitignore`.
+- Chỉ sử dụng bốn đặc trưng hồ sơ, chưa xét nội dung bài đăng hoặc mạng lưới tương tác.
+- Tuổi tài khoản lấy từ dữ liệu nguồn; tần suất đăng là trung bình cả vòng đời, không phản ánh riêng hoạt động gần đây.
+- Kết quả dựa trên một bộ dữ liệu và một lần chia tập. Test đã được quan sát trong các thí nghiệm trước, nên không phải tập kiểm thử hoàn toàn chưa từng được xem.
+- Không chọn lại cấu hình hoặc ngưỡng dựa trên kết quả test. Các chỉ số validation sau chọn cấu hình/ngưỡng không phải ước lượng độc lập trên dữ liệu mới.
+- Giữ dữ liệu nguồn và `split.csv`. Nếu thay dữ liệu hoặc mã dùng chung, chạy lại toàn bộ 01–04; nếu thay bước huấn luyện, chạy lại notebook tương ứng và notebook 04.
+- `requirements.txt` dùng khoảng phiên bản, chưa khóa chính xác toàn bộ môi trường; kết quả có thể chênh lệch giữa các phiên bản thư viện.
+- Nhãn bot không đủ để kết luận một tài khoản giả mạo danh tính hoặc lừa đảo.
 
 ## Thành viên
 
-- **Nguyễn Bá Thọ**
-- **Lê Hải Sơn**
-
-## Tài liệu tham khảo
-
-- [scikit-learn — Novelty and Outlier Detection](https://scikit-learn.org/stable/modules/outlier_detection.html)
-- [scikit-learn — GradientBoostingClassifier](https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.GradientBoostingClassifier.html)
-- [scikit-learn — Permutation feature importance](https://scikit-learn.org/stable/modules/permutation_importance.html)
+- Nguyễn Bá Thọ
+- Lê Hải Sơn
