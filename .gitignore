@@ -3,6 +3,8 @@
 
 # Python virtual environment and caches
 /.venv/
+/bot_detection_colab/
+/notebooks/bot_detection_colab/
 __pycache__/
 *.py[cod]
 

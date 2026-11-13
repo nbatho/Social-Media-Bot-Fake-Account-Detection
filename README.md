@@ -97,6 +97,7 @@ Python, pandas, NumPy, scikit-learn, Matplotlib, Seaborn và Jupyter Notebook.
 │   ├── twitter_human_bots_dataset.csv  # CSV nguồn, giữ nguyên
 │   └── processed/                     # Features và split sinh ra
 ├── notebooks/
+│   ├── 00_full_pipeline_colab.ipynb    # Bản gộp độc lập để tải lên Colab
 │   ├── 01_data_exploration.ipynb       # Kiểm tra dữ liệu và EDA
 │   ├── 02_anomaly_detection.ipynb      # Isolation Forest, One-Class SVM
 │   ├── 03_supervised_baseline.ipynb    # Gradient Boosting benchmark
@@ -253,6 +254,14 @@ Bộ kiểm thử dùng `unittest` có sẵn, gồm **12 test** trong `tests/tes
 Tái tạo model và báo cáo bằng Run All notebook 01 → 02 → 03 → 04. Notebook 02 lưu hai detector; notebook 03 lưu `models/gradient_boosting.joblib`, bảng validation và bảng tìm kiếm. Notebook 04 tải các model đã lưu để đánh giá, không huấn luyện lại.
 
 ### 5. Chạy notebook
+
+**Google Colab — một notebook duy nhất:**
+
+1. Tải [`notebooks/00_full_pipeline_colab.ipynb`](notebooks/00_full_pipeline_colab.ipynb) lên Colab.
+2. Chọn runtime Python / CPU và **Run all**. Khi được yêu cầu, tải lên `dataset/twitter_human_bots_dataset.csv` từ máy.
+3. Notebook tự cài thư viện, định nghĩa các hàm trực tiếp trong cell (không tạo thư mục `src/`), chạy đủ bốn phần theo thứ tự và tải ZIP kết quả ở cell cuối. Không cần tải riêng `src/` hoặc bốn notebook gốc. Lưu ZIP trước khi đóng runtime; ZIP chứa cả `split.csv` để dùng lại phân hoạch.
+
+Bản Colab dùng cùng công thức đặc trưng, seed, lưới cấu hình và cách chọn ngưỡng với notebook 01–04. Khi chạy local, kết quả nằm trong thư mục riêng `bot_detection_colab/`; nếu tìm thấy CSV và split của dự án, notebook sao chép chúng để dùng lại. Sau khi sửa `src/` hoặc notebook gốc, chạy `python scripts/build_colab_notebook.py` để tạo lại bản gộp.
 
 **Trong VS Code:**
 
